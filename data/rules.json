@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "convencion": "delta_clicks se cuenta desde 100 % cerrado: negativo = más amortiguación (más cerrado), positivo = menos. Son 'clicks de referencia': el motor los convierte a clicks reales con efecto_por_click de cada ajustador.",
+  "referencia": { "peso_kg": 80 },
+  "modelo": {
+    "sesgo_trasero": 0.65,
+    "sesgo_limites": [0.5, 0.8],
+    "precarga_mm_por_vuelta": 1.0,
+    "paso_resorte_lb": 25,
+    "efecto_referencia_por_click": { "LSC": 0.055, "HSC": 0.125, "LSR": 0.055, "HSR": 0.125 },
+    "rebote": {
+      "exponente_masa": 1,
+      "nota": "Rebote necesario ∝ frecuencia natural × masa^exponente. 1 = amortiguación crítica (√(k·m)); 0 = solo frecuencia."
+    },
+    "impacto_referencia": {
+      "altura_equivalente_m": 1.0,
+      "fraccion_al_resorte": 0.15,
+      "uso_maximo": 0.9,
+      "nota": "Energía de la caída de referencia que termina en el resorte trasero (el resto la absorben piernas, amortiguación y neumático). Calibrable con la bitácora."
+    }
+  },
+  "objetivos": {
+    "sag_horquilla_pct": { "min": 20, "max": 25, "ideal": 22.5 },
+    "sag_amortiguador_pct": { "min": 28, "max": 33, "ideal": 30 },
+    "precarga_vueltas": { "min": 1, "max": 2 },
+    "balance_puntos": { "min": 7, "max": 10, "ideal": 8.5 }
+  },
+  "neumaticos": {
+    "peso_referencia_kg": 80,
+    "adelante_psi": 23,
+    "atras_psi": 26,
+    "kg_por_psi": 7.5,
+    "redondeo_psi": 0.5,
+    "limites_psi": [16, 35]
+  },
+  "geometria": {
+    "nota": "Para cada flip chip gana la primera regla cuyo 'si' se cumple. Claves de 'si': trail_type, trail_grip, saltos, trail_low_max_mm (trail en Low con el offset activo ≤ valor).",
+    "maestro": [
+      { "si": { "trail_type": "Tech", "trail_low_max_mm": 147 }, "valor": "Low", "porque": "Tech: Low da más ángulo y pedalier bajo, y el trail ({trail_low} mm) sigue ≤ 147 mm" },
+      { "si": { "trail_type": "Tech" }, "valor": "Mid", "porque": "Tech: en Low el trail quedaría en {trail_low} mm (> 147) con offset de {offset} mm; Mid mantiene la dirección manejable" },
+      { "si": { "trail_type": "Flow", "trail_grip": "High", "saltos": false }, "valor": "High", "porque": "Flow rápido y con agarre: pedalier más alto y dirección más viva para bombear y pedalear" },
+      { "si": { "saltos": true }, "valor": "Mid", "porque": "Saltos: Mid es el punto equilibrado para despegar y caer" },
+      { "si": {}, "valor": "Mid", "porque": "Baseline: equilibrio entre estabilidad y agilidad" }
+    ],
+    "direccion": [
+      { "si": { "trail_type": "Flow", "saltos": false }, "valor": "Long", "porque": "Flow: +5 mm de reach para más estabilidad a alta velocidad" },
+      { "si": {}, "valor": "Mid", "porque": "Reach de baseline" }
+    ],
+    "dropout": [
+      { "si": { "trail_type": "Tech" }, "valor": "Short", "porque": "Tech: vaina corta, más ágil en pistas cerradas" },
+      { "si": { "trail_type": "Flow" }, "valor": "Long", "porque": "Flow: más estable a alta velocidad" },
+      { "si": { "saltos": true }, "valor": "Long", "porque": "Saltos: más estabilidad en despegues y caídas" },
+      { "si": {}, "valor": "Short", "porque": "Baseline: más ágil" }
+    ]
+  },
+  "suspension_feel": {
+    "min": -4,
+    "max": 4,
+    "nota": "Deltas por paso hacia Firm (+). Hacia Soft se invierten. cada_pasos: se aplica 1 vez cada N pasos.",
+    "por_paso": [
+      { "extremo": "ambos", "tipo": "LSC", "delta_clicks": -1, "cada_pasos": 1 },
+      { "extremo": "ambos", "tipo": "HSC", "delta_clicks": -1, "cada_pasos": 2 }
+    ],
+    "horquilla_psi": { "delta": 1, "cada_pasos": 2 }
+  },
+  "trail_type": {
+    "Tech": {
+      "neumaticos_psi": { "adelante": -1, "atras": -1 },
+      "efectos": [
+        { "extremo": "adelante", "tipo": "LSC", "delta_clicks": -1, "porque": "soporte al frenar" },
+        { "extremo": "ambos", "tipo": "LSR", "delta_clicks": -1, "porque": "rebote más lento" }
+      ]
+    },
+    "Mixed": { "neumaticos_psi": { "adelante": 0, "atras": 0 }, "efectos": [] },
+    "Flow": {
+      "neumaticos_psi": { "adelante": 1, "atras": 1 },
+      "efectos": [
+        { "extremo": "atras", "tipo": "HSC", "delta_clicks": -1, "porque": "soporte en compresiones rápidas" }
+      ]
+    }
+  },
+  "trail_grip": {
+    "Low": {
+      "neumaticos_psi": { "adelante": -1.5, "atras": -1.5 },
+      "efectos": [
+        { "extremo": "ambos", "tipo": "LSC", "delta_clicks": 1.5, "porque": "menos LSC para tracción" },
+        { "extremo": "ambos", "tipo": "LSR", "delta_clicks": -1, "porque": "rebote más lento para tracción" }
+      ]
+    },
+    "Medium": { "neumaticos_psi": { "adelante": 0, "atras": 0 }, "efectos": [] },
+    "High": {
+      "neumaticos_psi": { "adelante": 1, "atras": 1 },
+      "efectos": [
+        { "extremo": "ambos", "tipo": "LSC", "delta_clicks": -1, "porque": "más soporte en curvas" }
+      ]
+    }
+  },
+  "saltos": {
+    "si": {
+      "neumaticos_psi": { "adelante": 0, "atras": 1 },
+      "horquilla": { "tokens": 1, "psi_alternativa": 4 },
+      "efectos": [
+        { "extremo": "adelante", "tipo": "HSC", "delta_clicks": -1.5, "porque": "no hacer tope en las caídas" },
+        { "extremo": "atras", "tipo": "HSC", "delta_clicks": -1.5, "si": { "uso_recorrido_mayor_que": 0.9 }, "porque": "el modelo predice {uso} % de recorrido en el impacto de referencia" },
+        { "extremo": "atras", "tipo": "LSR", "delta_clicks": -0.5, "si": { "uso_recorrido_hasta": 0.9 }, "porque": "uso de recorrido {uso} % ≤ 90 %: HSC queda igual y se prioriza el rebote" },
+        { "extremo": "ambos", "tipo": "LSR", "delta_clicks": -1, "porque": "que no patee en el despegue" },
+        { "extremo": "ambos", "tipo": "HSR", "delta_clicks": -1, "porque": "que no patee en el despegue" }
+      ]
+    },
+    "no": { "neumaticos_psi": { "adelante": 0, "atras": 0 }, "efectos": [] }
+  },
+  "balance": {
+    "trasera_baja": { "extremo": "atras", "tipo": "LSC", "delta_clicks": -1, "porque": "balance: la trasera queda baja respecto a la horquilla" },
+    "delantera_baja": { "extremo": "adelante", "tipo": "LSC", "delta_clicks": -1, "porque": "balance: la horquilla queda baja respecto a la trasera" }
+  },
+  "calibracion": {
+    "nota": "Cada registro de la bitácora con estos avisos mueve los parámetros calibrables. 'efecto_mult' multiplica efecto_por_click (< 1 = cada click hace menos de lo supuesto); 'bias' es amortiguación extra permanente (fracción del rango).",
+    "limites": { "efecto_mult": [0.5, 1.5], "bias": [-0.25, 0.25], "impacto_mult": [0.6, 1.8], "presion_mult": [0.85, 1.2] },
+    "feedback": {
+      "tope_atras": {
+        "etiqueta": "Hizo tope atrás",
+        "sesgo_trasero": 0.01, "impacto_mult": 1.08,
+        "amortiguador": { "efecto_mult": { "HSC": 0.92 }, "bias": { "HSC": 0.04 } }
+      },
+      "tope_adelante": {
+        "etiqueta": "Hizo tope adelante",
+        "horquilla": { "efecto_mult": { "HSC": 0.92 }, "bias": { "HSC": 0.04 }, "presion_mult": 1.02 }
+      },
+      "rebota_atras": {
+        "etiqueta": "Rebota mucho atrás",
+        "amortiguador": { "efecto_mult": { "LSR": 0.92, "HSR": 0.92 }, "bias": { "LSR": 0.03, "HSR": 0.04 } }
+      },
+      "rebota_adelante": {
+        "etiqueta": "Rebota mucho adelante",
+        "horquilla": { "efecto_mult": { "LSR": 0.92, "HSR": 0.92 }, "bias": { "LSR": 0.03, "HSR": 0.04 } }
+      },
+      "se_hunde_atras": {
+        "etiqueta": "Se hunde en curvas atrás",
+        "sesgo_trasero": 0.01,
+        "amortiguador": { "efecto_mult": { "LSC": 0.92 }, "bias": { "LSC": 0.03 } }
+      },
+      "se_hunde_adelante": {
+        "etiqueta": "Se hunde en curvas adelante",
+        "horquilla": { "efecto_mult": { "LSC": 0.92 }, "bias": { "LSC": 0.03 }, "presion_mult": 1.01 }
+      }
+    }
+  }
+}

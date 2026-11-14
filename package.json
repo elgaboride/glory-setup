@@ -1,0 +1,11 @@
+{
+  "name": "glory-setup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA offline para el setup de una Giant Glory Advanced M/L mullet",
+  "scripts": {
+    "test": "node --test",
+    "start": "node scripts/servidor.mjs"
+  }
+}

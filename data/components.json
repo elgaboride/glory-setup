@@ -1,0 +1,65 @@
+{
+  "horquillas": {
+    "boxxer_ultimate_c2": {
+      "nombre": "BoXXer Ultimate",
+      "nombre_largo": "RockShox BoXXer Ultimate C2 (Charger 2.1 RC2, 2019-2023)",
+      "tipo_resorte": "aire",
+      "recorrido_mm": 200,
+      "barras_mm": 35,
+      "offset_mm": 48,
+      "offset_verificado": true,
+      "ajustadores": [
+        { "id": "rebote", "tipo": "REBOTE_UNICO", "clicks_totales": 18, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false },
+        { "id": "lsc", "tipo": "LSC", "clicks_totales": 18, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false,
+          "nota": "Nominal 20; unidades reales miden entre 17 y 18." },
+        { "id": "hsc", "tipo": "HSC", "clicks_totales": 4, "unidad": "posiciones", "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false,
+          "nota": "5 posiciones (0-4)." }
+      ],
+      "presion_base": {
+        "tabla_peso_psi": [[63, 115], [72, 130], [81, 145], [90, 160], [99, 175]],
+        "verificado": false,
+        "nota": "PROVISORIO: reemplazar por la tabla del manual o de la etiqueta de la horquilla."
+      },
+      "spacers": { "nombre": "tokens", "instalados": null, "maximo": null, "verificado": false },
+      "notas": "Rangos de clicks confirmados con la ficha técnica. TODO: base_desde_cerrado, efecto_por_click y presión base."
+    },
+    "fox40_2027": {
+      "nombre": "Fox 40 2027",
+      "nombre_largo": "Fox 40 2027 (GRIP X2, aire GlideCore, tope MCU)",
+      "tipo_resorte": "aire",
+      "recorrido_mm": 203,
+      "barras_mm": 40,
+      "offset_mm": null,
+      "offset_opciones_mm": [44, 48, 52, 56],
+      "offset_verificado": false,
+      "ajustadores": [
+        { "id": "hsc", "tipo": "HSC", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "lsc", "tipo": "LSC", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "hsr", "tipo": "HSR", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "lsr", "tipo": "LSR", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." }
+      ],
+      "presion_base": { "tabla_peso_psi": null, "verificado": false, "nota": "TODO: tabla de presión por peso del manual." },
+      "spacers": { "nombre": "tokens", "instalados": null, "maximo": null, "verificado": false },
+      "notas": "TODO hasta cargar el manual: clicks_totales (los actuales son provisorios), base_desde_cerrado, efecto_por_click, presión base por peso, spacers instalados y offset."
+    }
+  },
+  "amortiguadores": {
+    "dhx2_factory": {
+      "nombre": "DHX2",
+      "nombre_largo": "Fox DHX2 Factory (coil, trunnion 225×75)",
+      "tipo_resorte": "coil",
+      "carrera_mm": 75,
+      "resorte_lb": 475,
+      "referencia_base": { "peso_kg": 80, "resorte_lb": 475 },
+      "precarga_mm_por_vuelta": 1.0,
+      "ajustadores": [
+        { "id": "hsc", "tipo": "HSC", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "lsc", "tipo": "LSC", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "hsr", "tipo": "HSR", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
+        { "id": "lsr", "tipo": "LSR", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." }
+      ],
+      "notas": "TODO hasta cargar el manual: clicks_totales (los actuales son provisorios), base_desde_cerrado y efecto_por_click."
+    }
+  },
+  "seleccion_por_defecto": { "horquilla": "boxxer_ultimate_c2", "amortiguador": "dhx2_factory" }
+}
