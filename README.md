@@ -76,7 +76,13 @@ Aparece solo en el selector de "Mi bici". Notas sobre los campos:
 - Sin tabla del fabricante, el rebote base se escala por peso y resorte desde `referencia_base: { peso_kg, resorte_lb }`.
 - `palanca.recomendada`: la app recuerda en qué posición dejar la palanca.
 - `avisos`: textos que se muestran junto al componente.
-- Si cambias el resorte, edita `resorte_lb`.
+- `fuente` y `confianza` (`oficial` o `no_verificado`): con `no_verificado` los datos se usan, pero la app avisa "Datos de X sin verificar con el fabricante".
+- Horquillas: `offsets_disponibles` (lo que ofrece el selector de offset; `offset_mm` es el de serie) y `a2c_mm` (altura eje-corona, para corregir la geometría).
+- Amortiguadores: `montaje` (si no coincide con `suspension_trasera.montaje_amortiguador` de `bike.json`, el selector lo bloquea con "No calza en la Glory"), `resortes: { min_lb, max_lb, paso_lb }` (opciones de "Resorte instalado"), `precarga_vueltas: { min, max }`, `resorte_por_peso` (referencia cruzada) y `rebote_por_resorte`.
+- Dial numerado: `"tipo_escala": "numerado"` con `min`, `max`, `positivo_es_firme` y `base_dial`. La app sigue mostrando clicks desde cerrado (`max − dial`) y agrega el dial entre paréntesis.
+- `"tipo": "ABO"` con `min`, `max` y `base`: se muestra como posición (no es compresión ni rebote); "Saltos" lo sube según `saltos.si.abo` de `rules.json`.
+- `alias`: ids antiguos del componente, para no perder selección ni bitácora al renombrarlo.
+- `resorte_lb` es el resorte por defecto; el instalado se elige en "Mi bici".
 
 ### Datos pendientes (TODO)
 
@@ -87,11 +93,19 @@ Aparece solo en el selector de "Mi bici". Notas sobre los campos:
 - `clicks_totales: null` → el ajustador se muestra como "falta dato".
 - `presion_base` sin tabla → la app pide inflar hasta el sag objetivo.
 
-Pendientes hoy: `efecto_por_click` de todos los ajustadores, bases reales de compresión y tokens instalados de la BoXXer, offset de la Fox 40, conteo real del LSC del DHX2 y `precarga_mm_por_vuelta`.
+Pendientes hoy: `efecto_por_click` de todos los ajustadores; bases reales de compresión y tokens instalados de la BoXXer C2; rebote (total y base) de la BoXXer D2; conteo real de clicks del DHX2 2024 (LSC) y 2027 (todos); resorte de referencia del rebote del Vivid; `precarga_mm_por_vuelta` de los tres amortiguadores.
 
 ## Flip chips: actual y recomendado
 
 En "Mi bici" se marca cómo está montada la bici hoy (Maestro, headset y dropout). La pestaña Setup calcula la geometría con esa posición y la compara con la recomendada: "Sin cambios" o una línea con lo que cambia. "Apliqué la recomendación" actualiza la posición actual. La bitácora guarda ambas.
+
+## Geometría combinada
+
+La geometría mostrada combina, en orden: tabla de Giant según el Maestro, chip de dirección (reach ±5 mm), offset de la horquilla (trail y distancia entre ejes, respecto de 52 mm) y altura de la horquilla (A2C, respecto de `geometria.a2c_referencia_mm` = 601,9 mm de la Fox 40 de serie). El dropout es cualitativo. La tabla "Geometría resultante" muestra además la diferencia con la tabla de Giant en Mid.
+
+## Resorte instalado y recomendado
+
+El resorte instalado se elige en "Mi bici", en los pasos del amortiguador. La app muestra el recomendado por el modelo, el sag predicho con el instalado y la precarga, dentro de los límites del amortiguador, que más lo acerca al objetivo; si no alcanza, avisa a qué resorte cambiar. Todos los clicks se calculan con el resorte instalado.
 
 ## Modelo físico
 

@@ -306,3 +306,23 @@ h3 small { text-transform: none; letter-spacing: 0; font-weight: 500; display: b
   min-height: 56px; padding: 12px 16px; border: 0; background: var(--acento); color: var(--sobre-acento); font-weight: 800; font-size: 1rem;
 }
 #aviso-version[hidden] { display: none; }
+
+/* Tercera tanda */
+.destacada { border-color: var(--acento); border-width: 2px; }
+.sobre { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--suave); font-weight: 700; }
+.gran-presion { display: flex; align-items: baseline; gap: 10px; }
+.gran-presion strong { font-size: 4.2rem; line-height: 1.05; font-weight: 800; color: var(--acento); }
+.gran-presion strong.sin { color: var(--suave); }
+.gran-presion span { font-size: 1.3rem; font-weight: 700; color: var(--suave); }
+.maximo { margin: 2px 0 0; font-size: .92rem; }
+.tabla-geo { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.tabla-geo th, .tabla-geo td { padding: 9px 4px; border-bottom: 1px solid var(--borde); text-align: right; }
+.tabla-geo th:first-child { text-align: left; font-weight: 600; color: var(--suave); }
+.tabla-geo thead th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); }
+.tabla-geo td { font-weight: 800; }
+.tabla-geo td:last-child { color: var(--acento); }
+.tabla-geo td.igual { color: var(--suave); font-weight: 600; }
+.dial { color: var(--texto); }
+.opcion.bloqueada { opacity: .55; cursor: not-allowed; }
+.no-calza { color: var(--alerta) !important; font-weight: 800; }
+.lista > li.dato .cambio:only-child { margin: 0; }
