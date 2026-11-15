@@ -99,6 +99,7 @@
     "si": {
       "neumaticos_psi": { "adelante": 0, "atras": 1 },
       "horquilla": { "tokens": 1, "psi_alternativa": 4 },
+      "abo": 1,
       "efectos": [
         { "extremo": "adelante", "tipo": "HSC", "delta_clicks": -1.5, "porque": "no hacer tope en las caídas" },
         { "extremo": "atras", "tipo": "HSC", "delta_clicks": -1.5, "si": { "uso_recorrido_mayor_que": 0.9 }, "porque": "el modelo predice {uso} % de recorrido en el impacto de referencia" },

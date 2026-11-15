@@ -1,5 +1,7 @@
 import { leer, guardar } from './almacen.js';
-import { recomendar, nombreMontado, camposSinVerificar } from './engine/motor.js';
+import {
+  recomendar, nombreMontado, camposSinVerificar, esCompatible, resortesDisponibles, offsetParaHorquilla,
+} from './engine/motor.js';
 import { calibrar, resumenCalibracion } from './engine/calibracion.js';
 
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
@@ -28,7 +30,8 @@ const estado = {
   tab: 'setup',
   inputs: { ...INPUTS_DEFECTO, ...leer('inputs', {}) },
   seleccion: leer('seleccion', null),
-  offsets: leer('offsets', {}),
+  offsets: leer('offsets', {}), // offset elegido por horquilla
+  resortes: leer('resortes', {}), // resorte instalado por amortiguador
   chips: leer('chips', null), // posición ACTUAL de los flip chips
   bitacora: leer('bitacora', []),
   filtros: { pista: '', horquilla: '', amortiguador: '' },
@@ -60,10 +63,53 @@ const cerrarDialogo = () => $('#dlg').close();
 function seleccionValida() {
   const def = datos.components.seleccion_por_defecto;
   const s = estado.seleccion ?? {};
+  const a = datos.components.amortiguadores[s.amortiguador];
   return {
     horquilla: datos.components.horquillas[s.horquilla] ? s.horquilla : def.horquilla,
-    amortiguador: datos.components.amortiguadores[s.amortiguador] ? s.amortiguador : def.amortiguador,
+    amortiguador: a && esCompatible(datos.bike, a) ? s.amortiguador : def.amortiguador,
   };
+}
+
+// Offset de la horquilla activa: el elegido en "Mi bici" si la horquilla lo ofrece.
+function offsetActivo(sel = seleccionValida()) {
+  const h = datos.components.horquillas[sel.horquilla];
+  const elegido = estado.offsets[sel.horquilla];
+  const disp = h.offsets_disponibles;
+  if (elegido != null && (!disp || disp.includes(elegido))) return elegido;
+  return h.offset_mm ?? disp?.[0] ?? null;
+}
+
+// Resorte instalado del amortiguador activo (lb/in), dentro de los pasos que ofrece.
+function resorteInstalado(sel = seleccionValida()) {
+  const a = datos.components.amortiguadores[sel.amortiguador];
+  const lista = resortesDisponibles(a, datos.rules);
+  if (!lista.length) return null;
+  const elegido = estado.resortes[sel.amortiguador];
+  if (lista.includes(elegido)) return elegido;
+  const defecto = a.resorte_lb ?? 475;
+  return lista.reduce((m, k) => (Math.abs(k - defecto) < Math.abs(m - defecto) ? k : m), lista[0]);
+}
+
+// Componentes renombrados: lleva selección, ajustes y bitácora guardados al id nuevo.
+function migrarIds() {
+  const alias = {};
+  for (const grupo of [datos.components.horquillas, datos.components.amortiguadores]) {
+    for (const [id, c] of Object.entries(grupo)) for (const viejo of c.alias ?? []) alias[viejo] = id;
+  }
+  const nuevo = (id) => alias[id] ?? id;
+  let cambio = false;
+  const migrarMapa = (m) => {
+    for (const k of Object.keys(m ?? {})) if (alias[k]) { m[alias[k]] ??= m[k]; delete m[k]; cambio = true; }
+  };
+  if (estado.seleccion) {
+    for (const k of ['horquilla', 'amortiguador']) if (alias[estado.seleccion[k]]) { estado.seleccion[k] = nuevo(estado.seleccion[k]); cambio = true; }
+  }
+  migrarMapa(estado.offsets);
+  migrarMapa(estado.resortes);
+  for (const reg of estado.bitacora) {
+    for (const k of ['horquilla', 'amortiguador']) if (alias[reg[k]]) { reg[k] = nuevo(reg[k]); cambio = true; }
+  }
+  return cambio;
 }
 
 function chipsActuales() {
@@ -79,14 +125,15 @@ function calcular() {
     bike: datos.bike, components: datos.components, rules: datos.rules,
     seleccion: sel, inputs: estado.inputs,
     calibracion: calibrar(estado.bitacora, datos.rules),
-    offsetUsuario: estado.offsets[sel.horquilla] ?? null,
+    offsetUsuario: offsetActivo(sel),
+    resorteInstalado: resorteInstalado(sel),
     chipsActuales: chipsActuales(),
   });
   return ultima;
 }
 
 function pintarMontado() {
-  $('#montado').textContent = nombreMontado(datos.components, seleccionValida());
+  $('#montado').textContent = nombreMontado(datos.components, seleccionValida(), resorteInstalado());
 }
 
 const nombreComp = (id) => datos.components.horquillas[id]?.nombre ?? datos.components.amortiguadores[id]?.nombre ?? id ?? '–';
@@ -164,6 +211,10 @@ function vistaSetup() {
 
 const etiquetaFeel = (v) => (v === 0 ? '0 · Neutro' : v > 0 ? `Firm +${v}` : `Soft −${Math.abs(v)}`);
 
+function sinFabricante(r, nombre) {
+  return r.sin_verificar_fabricante.filter((t) => t.includes(nombre)).map((t) => `<p class="discreto">⚠ ${esc(t)}.</p>`).join('');
+}
+
 function sinVerificarHtml(lista) {
   return lista.length ? `<p class="discreto">⚠ Sin verificar (valores provisorios): ${esc(lista.join(', '))}.</p>` : '';
 }
@@ -172,13 +223,25 @@ function filaAjustador(a) {
   if (a.sin_datos) {
     return `<li class="aj"><div class="aj-cab"><div><b>${esc(a.nombre)}</b><small>${esc(a.descripcion)}</small></div><div class="aj-num sin">–</div></div><p class="porque">${esc(a.porque)}</p></li>`;
   }
+  if (a.es_posicion) {
+    const pctPos = ((a.click - a.minimo) / (a.clicks_totales - a.minimo)) * 100;
+    return `
+    <li class="aj">
+      <div class="aj-cab">
+        <div><b>${esc(a.nombre)}</b><small>${esc(a.descripcion)}${a.verificado ? '' : ' · sin verificar'}</small></div>
+        <div class="aj-num" aria-label="${esc(a.texto)}"><strong>${a.click}</strong><small>posición<br>de ${a.minimo} a ${a.clicks_totales}</small></div>
+      </div>
+      <div class="regla" aria-hidden="true"><span>${a.minimo}</span><div class="regla-barra"><i style="left:${pctPos}%"></i></div><span>${a.clicks_totales}</span></div>
+      <p class="porque">${esc(a.porque)}</p>
+    </li>`;
+  }
   const pct = (a.click / a.clicks_totales) * 100;
   const unidad = a.unidad === 'posiciones' ? 'posición' : a.click === 1 ? 'click' : 'clicks';
   return `
     <li class="aj">
       <div class="aj-cab">
         <div><b>${esc(a.nombre)}</b><small>${esc(a.descripcion)}${a.verificado ? '' : ' · sin verificar'}</small></div>
-        <div class="aj-num" aria-label="${esc(a.texto)}"><strong>${a.click}</strong><small>${unidad} desde cerrado<br>de ${a.clicks_totales}</small></div>
+        <div class="aj-num" aria-label="${esc(a.texto)}"><strong>${a.click}</strong><small>${unidad} desde cerrado<br>de ${a.clicks_totales}${a.dial_texto != null ? ` · <b class="dial">dial ${esc(a.dial_texto)}</b>` : ''}</small></div>
       </div>
       <div class="regla" aria-hidden="true"><span>cerrado</span><div class="regla-barra"><i style="left:${pct}%"></i></div><span>abierto</span></div>
       <p class="porque">${esc(a.porque)}</p>
@@ -189,7 +252,7 @@ function filaChip(titulo, c) {
   const valor = c.cambia
     ? `<span class="de-a"><s>${esc(c.actual)}</s><i aria-hidden="true">→</i><span class="visually-hidden"> cambia a </span>${esc(c.recomendado)}</span>`
     : esc(c.recomendado);
-  return `<li class="dato"><div class="dato-cab"><span>${titulo}</span><strong>${valor}</strong></div>
+  return `<li class="dato chip"><div class="dato-cab"><span>${titulo}</span><strong>${valor}</strong></div>
     <p class="cambio ${c.cambia ? 'alerta' : 'ok'}">${c.cambia ? `Cambiar: ${esc(c.texto)}` : 'Sin cambios: ya está en la posición recomendada'}</p>
     <p class="porque">${esc(c.porque)}</p></li>`;
 }
@@ -221,13 +284,21 @@ function pintarResultado() {
   const h = r.horquilla;
   const a = r.amortiguador;
   const dOffset = m.delta_ejes_offset_mm;
-  const resorteValor = a.resorte.veredicto === 'aire'
-    ? (a.presion_base != null ? `${f(a.presion_base, 0)} psi` : 'Aire')
-    : a.resorte.veredicto === 'cambiar'
-      ? `Cambiar a ${a.resorte.recomendado_lb} lb`
-      : `Mantener ${a.resorte.actual_lb} lb`;
+  const GEO = [
+    ['Ángulo de dirección', 'angulo_direccion', '°', 2], ['Ángulo de sillín', 'angulo_sillin', '°', 2],
+    ['Reach', 'reach_mm', ' mm', 1], ['Stack', 'stack_mm', ' mm', 1], ['Trail', 'trail_mm', ' mm', 1],
+    ['Distancia entre ejes', 'distancia_ejes_mm', ' mm', 1], ['Caída del pedalier', 'caida_pedalier_mm', ' mm', 1],
+  ];
+  const delta = (v, dec) => (Math.abs(v) < 0.5 / 10 ** dec ? '=' : `${v > 0 ? '+' : '−'}${f(Math.abs(v), dec)}`);
+  const pr = h.presion;
 
   cont.innerHTML = `
+    ${pr ? `<section class="tarjeta destacada" id="presion-activa">
+      <span class="sobre">Horquilla activa · ${esc(h.nombre)}</span>
+      <div class="gran-presion">${pr.psi != null ? `<strong>${pr.psi}</strong><span>psi${pr.provisoria ? '*' : ''}</span>` : '<strong class="sin">–</strong><span>psi: falta la tabla</span>'}</div>
+      <p class="maximo">${pr.maximo_psi != null ? `Máximo de esta horquilla: <b>${pr.maximo_psi} psi</b>` : 'Máximo de esta horquilla: sin dato'}${pr.supera_maximo ? ' · el cálculo lo superaba y se limitó' : ''}${pr.provisoria && pr.psi != null ? ' · *dato sin verificar' : ''}</p>
+    </section>` : ''}
+    ${r.compatible ? '' : '<section class="tarjeta error"><h2>No calza en la Glory</h2><p>El amortiguador activo no es 225×75 trunnion.</p></section>'}
     <section class="tarjeta">
       <h2>Flip chips <small>actual → recomendado</small></h2>
       <ul class="lista">
@@ -236,18 +307,12 @@ function pintarResultado() {
         ${filaChip('Dropout', g.dropout)}
       </ul>
       ${g.hay_cambios ? '<button type="button" class="btn-sec ancho" id="btn-aplique">Apliqué la recomendación</button>' : ''}
-      <h3>Geometría actual <small>Maestro ${esc(g.actuales.maestro)} · Headset ${esc(g.actuales.direccion)} · Dropout ${esc(g.actuales.dropout)}</small></h3>
-      <dl class="geo">
-        <div><dt>Dirección</dt><dd>${f(m.angulo_direccion)}°</dd></div>
-        <div><dt>Sillín</dt><dd>${f(m.angulo_sillin)}°</dd></div>
-        <div><dt>Reach</dt><dd>${f(m.reach_mm)}<small> mm</small></dd></div>
-        <div><dt>Stack</dt><dd>${f(m.stack_mm)}<small> mm</small></dd></div>
-        <div><dt>Caída pedalier</dt><dd>${f(m.caida_pedalier_mm)}<small> mm</small></dd></div>
-        <div><dt>Vaina</dt><dd>${f(m.vaina_mm)}<small> mm</small></dd></div>
-        <div><dt>Entre ejes</dt><dd>${f(m.distancia_ejes_mm)}<small> mm</small></dd></div>
-        <div><dt>Trail</dt><dd>${f(m.trail_mm)}<small> mm</small></dd></div>
-      </dl>
-      <p class="porque">Reach = ${f(m.reach_maestro_mm)} del Maestro ${m.reach_offset_mm >= 0 ? '+' : '−'} ${Math.abs(m.reach_offset_mm)} mm del chip de dirección. Offset de horquilla ${f(m.offset_mm, 0)} mm${Math.abs(dOffset) > 0.05 ? `: trail y entre ejes (${dOffset > 0 ? '+' : '−'}${f(Math.abs(dOffset))} mm) recalculados sobre la tabla de Giant (52 mm)` : ' (igual a la tabla de Giant)'}.</p>
+      <h3>Geometría resultante <small>Maestro ${esc(g.actuales.maestro)} · Headset ${esc(g.actuales.direccion)} · Dropout ${esc(g.actuales.dropout)} · offset ${f(m.offset_mm, 0)} mm · A2C ${f(m.a2c.a2c_mm)} mm</small></h3>
+      <table class="tabla-geo">
+        <thead><tr><th scope="col">Medida</th><th scope="col">Actual</th><th scope="col">vs Giant Mid</th></tr></thead>
+        <tbody>${GEO.map(([n, k, u, dec]) => `<tr><th scope="row">${n}</th><td>${f(m[k], dec)}${u}</td><td class="${Math.abs(g.delta_giant_mid[k]) < 0.5 / 10 ** dec ? 'igual' : ''}">${delta(g.delta_giant_mid[k], dec)}</td></tr>`).join('')}</tbody>
+      </table>
+      <p class="porque">Combina, en orden: tabla de Giant para Maestro ${esc(g.actuales.maestro)}, chip de dirección (${m.reach_offset_mm >= 0 ? '+' : '−'}${Math.abs(m.reach_offset_mm)} mm de reach), offset de ${f(m.offset_mm, 0)} mm (tabla: 52) y altura de la horquilla (${m.a2c.delta_mm >= 0 ? '+' : '−'}${f(Math.abs(m.a2c.delta_mm))} mm de A2C). El dropout ${esc(g.actuales.dropout)} es cualitativo. La columna derecha compara con la tabla de Giant en Mid.</p>
     </section>
 
     <section class="tarjeta">
@@ -262,6 +327,7 @@ function pintarResultado() {
 
     <section class="tarjeta">
       <h2>Horquilla <small>${esc(h.nombre)}</small></h2>
+      ${sinFabricante(r, h.nombre)}
       ${sinVerificarHtml(r.sin_verificar.horquilla)}
       ${(datos.components.horquillas[h.id].avisos ?? []).map((x) => `<p class="discreto">⚠ ${esc(x)}</p>`).join('')}
       <ul class="lista">
@@ -274,15 +340,23 @@ function pintarResultado() {
     </section>
 
     <section class="tarjeta">
-      <h2>Amortiguador <small>${esc(a.nombre)}${a.resorte.actual_lb ? ` ${a.resorte.actual_lb} lb` : ''}</small></h2>
+      <h2>Amortiguador <small>${esc(a.nombre)}</small></h2>
+      ${sinFabricante(r, a.nombre)}
       ${sinVerificarHtml(r.sin_verificar.amortiguador)}
+      ${a.es_coil ? `
+      <div class="duo">
+        <div><span>Resorte instalado</span><strong>${a.resorte.instalado_lb}<small> lb</small></strong></div>
+        <div><span>Recomendado</span><strong>${a.resorte.recomendado_lb}<small> lb</small></strong><em>sag objetivo ${f(a.sag_objetivo.ideal)} %</em></div>
+      </div>
+      <p class="visually-hidden">${esc(a.resorte.linea)}</p>
+      <p class="discreto">Resorte ideal exacto: ${f(a.resorte.ideal_exacto_lb, 0)} lb${a.resorte.tabla_fabricante ? ` · ${esc(a.resorte.tabla_fabricante.texto)} (referencia cruzada)` : ''}. El instalado se cambia en "Mi bici".</p>` : ''}
       <ul class="lista">
-        ${filaDato(`Sag ${a.sag.medido ? 'medido' : 'estimado'}`, `${f(a.sag.pct_shock)} %`, `Objetivo ${a.sag_objetivo.min}-${a.sag_objetivo.max} % (${f(a.sag_objetivo.ideal, 0)} % = ${f(a.sag_objetivo.mm, 0)} mm de shock). Son ${f(a.sag.shock_mm)} mm de shock y ${f(a.sag.rueda_mm, 0)} mm en la rueda.`)}
-        ${filaDato('Resorte', resorteValor, a.resorte.porque, a.es_coil ? `<em class="sub">Ideal ${f(a.resorte.ideal_exacto_lb, 0)} lb · catálogo ${a.resorte.ideal_catalogo_lb} lb</em>` : '')}
-        ${a.es_coil ? filaDato('Precarga', `${a.precarga.vueltas} vuelta${a.precarga.vueltas === 1 ? '' : 's'}`, a.precarga.porque) : ''}
+        ${filaDato(`Sag ${a.sag.medido ? 'medido' : 'predicho'}${a.es_coil ? ' con el resorte instalado' : ''}`, `${f(a.sag.pct_shock)} %`, `Son ${f(a.sag.shock_mm)} mm de shock y ${f(a.sag.rueda_mm, 0)} mm en la rueda. Objetivo ${a.sag_objetivo.min}-${a.sag_objetivo.max} % (${f(a.sag_objetivo.ideal)} % = ${f(a.sag_objetivo.mm, 0)} mm de shock).`)}
+        ${a.es_coil ? filaDato('Precarga', `${f(a.precarga.vueltas)} vuelta${a.precarga.vueltas === 1 ? '' : 's'}`, a.precarga.porque, `<em class="sub">límites: ${f(a.precarga.minimo)} a ${f(a.precarga.maximo)} vueltas</em>`) : ''}
+        ${a.es_coil ? `<li class="dato"><p class="cambio ${a.resorte.veredicto === 'cambiar' ? 'alerta' : 'ok'}">${esc(a.resorte.porque)}</p></li>` : filaDato('Resorte', a.presion_base != null ? `${f(a.presion_base, 0)} psi` : 'Aire', a.resorte.porque)}
       </ul>
       <h3>Clicks desde 100 % cerrado</h3>
-      ${a.palanca || (a.es_coil && a.resorte_para_clicks_lb !== a.resorte.actual_lb) ? `<p class="discreto">${[a.palanca ? `${esc(a.palanca)}.` : '', a.es_coil && a.resorte_para_clicks_lb !== a.resorte.actual_lb ? `Clicks calculados para el resorte recomendado de ${a.resorte_para_clicks_lb} lb.` : ''].filter(Boolean).join(' ')}</p>` : ''}
+      ${a.palanca || a.es_coil ? `<p class="discreto">${[a.palanca ? `${esc(a.palanca)}.` : '', a.es_coil ? `Clicks calculados con el resorte instalado de ${a.resorte_para_clicks_lb} lb.` : ''].filter(Boolean).join(' ')}</p>` : ''}
       <ul class="lista">${a.ajustadores.map(filaAjustador).join('')}</ul>
     </section>
 
@@ -350,6 +424,7 @@ function instantanea(r) {
   return {
     chips: { ...r.geometria.recomendados }, // recomendados
     chips_actuales: { ...r.geometria.actuales },
+    offset_mm: r.geometria.offset_mm,
     geometria: { reach_mm: r.geometria.medidas.reach_mm, trail_mm: r.geometria.medidas.trail_mm, distancia_ejes_mm: r.geometria.medidas.distancia_ejes_mm },
     neumaticos: { adelante_psi: r.neumaticos.adelante.psi, atras_psi: r.neumaticos.atras.psi },
     horquilla: {
@@ -360,7 +435,7 @@ function instantanea(r) {
     },
     amortiguador: {
       sag_pct: r.amortiguador.sag.pct_shock,
-      resorte_lb: r.amortiguador.resorte.actual_lb,
+      resorte_lb: r.amortiguador.resorte.instalado_lb, // instalado
       resorte_recomendado_lb: r.amortiguador.resorte.recomendado_lb,
       precarga_vueltas: r.amortiguador.es_coil ? r.amortiguador.precarga.vueltas : null,
       clicks: clicks(r.amortiguador.ajustadores),
@@ -468,7 +543,7 @@ function vistaBitacora() {
 function exportar() {
   const contenido = JSON.stringify({
     app: 'glory-setup', version: 1, exportado: new Date().toISOString(),
-    seleccion: seleccionValida(), offsets: estado.offsets, chips: chipsActuales(), inputs: estado.inputs, bitacora: estado.bitacora,
+    seleccion: seleccionValida(), offsets: estado.offsets, resortes: estado.resortes, chips: chipsActuales(), inputs: estado.inputs, bitacora: estado.bitacora,
   }, null, 2);
   const url = URL.createObjectURL(new Blob([contenido], { type: 'application/json' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: `glory-setup-${hoy()}.json` });
@@ -487,6 +562,7 @@ async function importar(archivo) {
     const ids = new Set(estado.bitacora.map((x) => x.id));
     const nuevos = validos.filter((x) => !ids.has(x.id));
     estado.bitacora.push(...nuevos);
+    migrarIds();
     persistir('bitacora', estado.bitacora);
     toast(`Importadas ${nuevos.length} salidas nuevas (${validos.length - nuevos.length} ya estaban).`);
     vistaBitacora();
@@ -556,7 +632,9 @@ function vistaComparar() {
         }, 'click');
       }
     }
-    fila('Resorte', (x) => (x.setup?.amortiguador.resorte_lb ? `${x.setup.amortiguador.resorte_lb} lb` : null));
+    fila('Resorte instalado', (x) => (x.setup?.amortiguador.resorte_lb ? `${x.setup.amortiguador.resorte_lb} lb` : null));
+    fila('Resorte recomendado', (x) => (x.setup?.amortiguador.resorte_recomendado_lb ? `${x.setup.amortiguador.resorte_recomendado_lb} lb` : null));
+    fila('Offset', (x) => (x.setup?.offset_mm != null ? `${x.setup.offset_mm} mm` : null));
     fila('Precarga', (x) => (x.setup?.amortiguador.precarga_vueltas != null ? `${x.setup.amortiguador.precarga_vueltas} v` : null));
     fila('Avisos', (x) => (x.avisos?.length ? x.avisos.map((k) => esc(fb[k]?.etiqueta ?? k)).join('<br>') : null));
     fila('Comentario', (x) => (x.comentario ? esc(x.comentario) : null), 'texto');
@@ -590,15 +668,16 @@ function eventosComparar(e) {
 function opcionesComponente(tipo, grupo, activo) {
   return Object.entries(grupo).map(([id, c]) => {
     const sv = camposSinVerificar(c);
+    const calza = tipo !== 'amortiguador' || esCompatible(datos.bike, c);
     const detalle = [
       c.tipo_resorte === 'coil' ? `Coil${c.resorte_lb ? ` ${c.resorte_lb} lb` : ''}` : 'Aire',
       c.recorrido_mm ? `${c.recorrido_mm} mm` : c.carrera_mm ? `${c.carrera_mm} mm de carrera` : '',
       `${c.ajustadores?.length ?? 0} ajustadores`,
     ].filter(Boolean).join(' · ');
     return `
-      <button type="button" class="opcion ${id === activo ? 'activo' : ''}" data-tipo="${tipo}" data-id="${esc(id)}" aria-pressed="${id === activo}">
+      <button type="button" class="opcion ${id === activo ? 'activo' : ''} ${calza ? '' : 'bloqueada'}" data-tipo="${tipo}" data-id="${esc(id)}" aria-pressed="${id === activo}" ${calza ? '' : 'disabled'}>
         <span class="radio" aria-hidden="true"></span>
-        <span><b>${esc(c.nombre)}</b><small>${esc(c.nombre_largo ?? '')}</small><small>${esc(detalle)}</small>${sv.length ? '<small class="discreto">⚠ con valores sin verificar</small>' : ''}</span>
+        <span><b>${esc(c.nombre)}</b><small>${esc(c.nombre_largo ?? '')}</small><small>${esc(detalle)}</small>${calza ? '' : '<small class="no-calza">No calza en la Glory</small>'}${c.confianza === 'no_verificado' ? '<small class="discreto">⚠ datos sin verificar con el fabricante</small>' : sv.length ? '<small class="discreto">⚠ con valores pendientes</small>' : ''}</span>
       </button>`;
   }).join('');
 }
@@ -609,8 +688,10 @@ function vistaBici() {
   const h = datos.components.horquillas[sel.horquilla];
   const a = datos.components.amortiguadores[sel.amortiguador];
   const cin = b.suspension_trasera.cinematica;
-  const pideOffset = h.offset_mm == null;
-  const offsetActual = estado.offsets[sel.horquilla] ?? null;
+  const offsetsDisp = h.offsets_disponibles ?? (h.offset_mm != null ? [h.offset_mm] : [44, 48, 52, 56]);
+  const offsetActual = offsetActivo(sel);
+  const resortes = resortesDisponibles(a, datos.rules);
+  const resorteActual = resorteInstalado(sel);
   const chips = chipsActuales();
   const g = b.geometria;
   const selectorChip = (clave, titulo, etiqueta) => `
@@ -631,14 +712,15 @@ function vistaBici() {
     <section class="tarjeta">
       <h2>Horquilla</h2>
       <div class="opciones">${opcionesComponente('horquilla', datos.components.horquillas, sel.horquilla)}</div>
-      ${pideOffset ? `
-        <div class="campo">
-          <label>Offset de ${esc(h.nombre)}</label>
-          <div class="segmento ancho" role="group" aria-label="Offset en mm">
-            ${(h.offset_opciones_mm ?? [44, 48, 52, 56]).map((o) => `<button type="button" data-offset="${o}" class="${o === offsetActual ? 'activo' : ''}">${o} mm</button>`).join('')}
-          </div>
-          <p class="ayuda">${offsetActual == null ? 'Elige el offset para recalcular trail y distancia entre ejes. Mientras tanto se usa 52 mm.' : 'Cuando lo confirmes, déjalo fijo en components.json (offset_mm).'}</p>
-        </div>` : `<p class="discreto">Offset ${h.offset_mm} mm${h.offset_verificado ? ' (confirmado)' : ''}.</p>`}
+      <div class="campo">
+        <label>Offset</label>
+        <div class="segmento ancho" role="group" aria-label="Offset de la horquilla en mm">
+          ${offsetsDisp.map((o) => `<button type="button" data-offset="${o}" class="${o === offsetActual ? 'activo' : ''}" aria-pressed="${o === offsetActual}">${o} mm</button>`).join('')}
+        </div>
+        <p class="ayuda">${offsetsDisp.length === 1 ? `${esc(h.nombre)} solo viene con ${offsetsDisp[0]} mm.` : `De serie: ${h.offset_mm ?? '–'} mm.`}${h.offset_nota ? ` ${esc(h.offset_nota)}` : ''} Altura (A2C): ${f(h.a2c_mm)} mm.</p>
+      </div>
+      ${h.confianza === 'no_verificado' ? `<p class="discreto">⚠ Datos de ${esc(h.nombre)} sin verificar con el fabricante.</p>` : ''}
+      <p class="discreto">Fuente: ${esc(h.fuente ?? 'sin dato')}.</p>
       ${sinVerificarHtml(camposSinVerificar(h))}
       ${(h.avisos ?? []).map((x) => `<p class="discreto">⚠ ${esc(x)}</p>`).join('')}
       ${h.notas ? `<p class="discreto">${esc(h.notas)}</p>` : ''}
@@ -646,6 +728,14 @@ function vistaBici() {
     <section class="tarjeta">
       <h2>Amortiguador</h2>
       <div class="opciones">${opcionesComponente('amortiguador', datos.components.amortiguadores, sel.amortiguador)}</div>
+      ${resortes.length ? `
+      <div class="campo">
+        <label for="resorte-instalado">Resorte instalado (lb/in)</label>
+        <select id="resorte-instalado">${resortes.map((k) => `<option value="${k}" ${k === resorteActual ? 'selected' : ''}>${k} lb/in</option>`).join('')}</select>
+        <p class="ayuda">Pasos de ${resortes[1] - resortes[0]} lb para ${esc(a.nombre)}. Sag, precarga y clicks se calculan con este resorte.</p>
+      </div>` : ''}
+      ${a.confianza === 'no_verificado' ? `<p class="discreto">⚠ Datos de ${esc(a.nombre)} sin verificar con el fabricante.</p>` : ''}
+      <p class="discreto">Fuente: ${esc(a.fuente ?? 'sin dato')}.</p>
       ${sinVerificarHtml(camposSinVerificar(a))}
       ${a.notas ? `<p class="discreto">${esc(a.notas)}</p>` : ''}
     </section>
@@ -668,6 +758,12 @@ function vistaBici() {
 }
 
 function eventosBici(e) {
+  if (e.type === 'change' && e.target.id === 'resorte-instalado') {
+    estado.resortes[seleccionValida().amortiguador] = Number(e.target.value);
+    persistir('resortes', estado.resortes);
+    pintarMontado();
+    return vistaBici();
+  }
   if (e.type !== 'click') return;
   const chip = e.target.closest('[data-chip]');
   if (chip) {
@@ -679,10 +775,11 @@ function eventosBici(e) {
   if (off) {
     estado.offsets[seleccionValida().horquilla] = Number(off.dataset.offset);
     persistir('offsets', estado.offsets);
+    toast(`Offset ${off.dataset.offset} mm: geometría recalculada.`);
     return vistaBici();
   }
   const op = e.target.closest('.opcion');
-  if (!op) return;
+  if (!op || op.disabled) return;
   const { tipo, id } = op.dataset;
   const sel = seleccionValida();
   if (sel[tipo] === id) return;
@@ -698,12 +795,25 @@ function eventosBici(e) {
       <div class="acciones"><button type="button" class="btn-sec" data-cerrar>No, cancelar</button><button type="button" class="btn-principal" id="si-cambiar">Sí, cambiar</button></div>
     </div>`);
   $('#si-cambiar', d).addEventListener('click', () => {
+    let aviso = null;
+    if (tipo === 'horquilla') {
+      // El offset actual se mantiene si la horquilla nueva lo ofrece; si no, el más cercano.
+      const anterior = offsetActivo(sel);
+      const { offset, cambio } = offsetParaHorquilla(comp, anterior);
+      if (offset != null) {
+        estado.offsets[id] = offset;
+        persistir('offsets', estado.offsets);
+      }
+      aviso = cambio
+        ? `${comp.nombre} no tiene offset de ${anterior} mm: se eligió ${offset} mm, el más cercano.`
+        : `${comp.nombre} montada con offset de ${offset} mm. Revisa la presión: cambia mucho entre horquillas.`;
+    }
     estado.seleccion = { ...sel, [tipo]: id };
     persistir('seleccion', estado.seleccion);
     cerrarDialogo();
     pintarMontado();
     vistaBici();
-    toast(`Montado: ${nombreMontado(datos.components, seleccionValida())}`);
+    toast(aviso ?? `Montado: ${nombreMontado(datos.components, seleccionValida(), resorteInstalado())}`);
   });
 }
 
@@ -754,6 +864,12 @@ async function iniciar() {
     return;
   }
   if (!Array.isArray(estado.bitacora)) estado.bitacora = [];
+  if (migrarIds()) {
+    persistir('seleccion', estado.seleccion);
+    persistir('offsets', estado.offsets);
+    persistir('resortes', estado.resortes);
+    persistir('bitacora', estado.bitacora);
+  }
   $('#pie').textContent = `Glory Setup v${self.GLORY_VERSION ?? '?'} · ${self.GLORY_FECHA ?? ''}`;
   pintarMontado();
   const vista = $('#vista');

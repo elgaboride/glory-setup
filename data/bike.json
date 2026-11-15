@@ -1,7 +1,11 @@
 {
   "nombre": "Giant Glory Advanced",
   "talla": "M/L",
-  "ruedas": { "adelante": "29\"", "atras": "27.5\"", "configuracion": "mullet" },
+  "ruedas": {
+    "adelante": "29\"",
+    "atras": "27.5\"",
+    "configuracion": "mullet"
+  },
   "fijos": {
     "tubo_direccion_mm": 110,
     "manubrio_mm": 800,
@@ -20,28 +24,62 @@
     "nota_offset": "La tabla de Giant asume 52 mm de offset. Con otro offset se recalculan trail y distancia entre ejes.",
     "maestro": {
       "Low": {
-        "angulo_direccion": 61.6, "angulo_sillin": 78.4, "reach_mm": 461.2, "stack_mm": 634.9,
-        "caida_pedalier_mm": 13.3, "vaina_mm": 447.9, "distancia_ejes_mm": 1293, "trail_mm": 146.2
+        "angulo_direccion": 61.6,
+        "angulo_sillin": 78.4,
+        "reach_mm": 461.2,
+        "stack_mm": 634.9,
+        "caida_pedalier_mm": 13.3,
+        "vaina_mm": 447.9,
+        "distancia_ejes_mm": 1293,
+        "trail_mm": 146.2
       },
       "Mid": {
-        "angulo_direccion": 62.0, "angulo_sillin": 78.8, "reach_mm": 464.9, "stack_mm": 632.2,
-        "caida_pedalier_mm": 8.3, "vaina_mm": 446.5, "distancia_ejes_mm": 1291.8, "trail_mm": 143.5
+        "angulo_direccion": 62.0,
+        "angulo_sillin": 78.8,
+        "reach_mm": 464.9,
+        "stack_mm": 632.2,
+        "caida_pedalier_mm": 8.3,
+        "vaina_mm": 446.5,
+        "distancia_ejes_mm": 1291.8,
+        "trail_mm": 143.5
       },
       "High": {
-        "angulo_direccion": 62.3, "angulo_sillin": 79.1, "reach_mm": 468.6, "stack_mm": 629.2,
-        "caida_pedalier_mm": 3.1, "vaina_mm": 445, "distancia_ejes_mm": 1290.6, "trail_mm": 140.8
+        "angulo_direccion": 62.3,
+        "angulo_sillin": 79.1,
+        "reach_mm": 468.6,
+        "stack_mm": 629.2,
+        "caida_pedalier_mm": 3.1,
+        "vaina_mm": 445,
+        "distancia_ejes_mm": 1290.6,
+        "trail_mm": 140.8
       }
     },
     "direccion": {
-      "Short": { "reach_mm": -5 },
-      "Mid": { "reach_mm": 0 },
-      "Long": { "reach_mm": 5 }
+      "Short": {
+        "reach_mm": -5
+      },
+      "Mid": {
+        "reach_mm": 0
+      },
+      "Long": {
+        "reach_mm": 5
+      }
     },
     "dropout": {
-      "Short": { "descripcion": "Más ágil, para pistas cerradas" },
-      "Long": { "descripcion": "Más estable a alta velocidad" }
+      "Short": {
+        "descripcion": "Más ágil, para pistas cerradas"
+      },
+      "Long": {
+        "descripcion": "Más estable a alta velocidad"
+      }
     },
-    "baseline": { "maestro": "Mid", "direccion": "Mid", "dropout": "Short" }
+    "baseline": {
+      "maestro": "Mid",
+      "direccion": "Mid",
+      "dropout": "Short"
+    },
+    "a2c_referencia_mm": 601.9,
+    "nota_a2c": "La tabla de Giant corresponde a la horquilla de serie (Fox 40 29\" 203 mm, offset 52 mm, A2C 601,9 mm). Con otra altura de horquilla se corrigen ángulos, stack, reach y caída del pedalier."
   },
   "suspension_trasera": {
     "sistema": "Maestro",
@@ -50,15 +88,48 @@
     "cinematica": {
       "curva_leverage": {
         "interpolacion": "spline_monotona",
-        "puntos": [[0, 3.30], [60, 2.84], [200, 2.30]],
+        "puntos": [
+          [
+            0,
+            3.3
+          ],
+          [
+            60,
+            2.84
+          ],
+          [
+            200,
+            2.3
+          ]
+        ],
         "nota": "Puntos [recorrido_rueda_mm, LR]. Reemplaza esta tabla por una curva medida (cualquier cantidad de puntos, x creciente) sin tocar el código. El punto del sag se asume a 60 mm de rueda (30 %)."
       },
-      "resumen": { "lr_inicio": 3.30, "lr_sag": 2.84, "lr_final": 2.30, "lr_promedio": 2.71, "progresion_pct": 30.3 },
+      "resumen": {
+        "lr_inicio": 3.3,
+        "lr_sag": 2.84,
+        "lr_final": 2.3,
+        "lr_promedio": 2.71,
+        "progresion_pct": 30.3
+      },
       "forma": "Blanda arriba, progresión constante en el medio y final plano (según Giant).",
-      "anti_squat": { "inicio_pct": [115, 130], "sag_pct": [70, 80], "fuente": "Pinkbike" },
+      "anti_squat": {
+        "inicio_pct": [
+          115,
+          130
+        ],
+        "sag_pct": [
+          70,
+          80
+        ],
+        "fuente": "Pinkbike"
+      },
       "fuente": "Base de datos de Avalanche Downhill Racing (no es dato oficial de Giant)",
       "verificar": true
-    }
+    },
+    "montaje_amortiguador": "225x75 trunnion"
   },
-  "neumaticos": { "carcasa": "Descenso (DH), dura", "configuracion": "mullet" }
+  "neumaticos": {
+    "carcasa": "Descenso (DH), dura",
+    "configuracion": "mullet"
+  }
 }

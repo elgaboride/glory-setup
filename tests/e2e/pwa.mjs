@@ -50,10 +50,10 @@ try {
   await lista();
   const version1 = (await readFile(join(sitio, 'version.js'), 'utf8')).match(/GLORY_VERSION = '([^']+)'/)[1];
   assert.ok((await pie()).includes(`v${version1}`), 'la versión no está en el pie');
-  assert.equal(await p.textContent('#montado'), 'BoXXer Ultimate · DHX2 475');
+  assert.equal(await p.textContent('#montado'), 'BoXXer Ultimate · DHX2 2024 475');
 
   // Flip chips: por defecto coincide con Mixed → "Sin cambios"
-  const cambios = () => p.$$eval('.cambio', (els) => els.map((e) => e.textContent));
+  const cambios = () => p.$$eval('.chip .cambio', (els) => els.map((e) => e.textContent));
   assert.ok((await cambios()).every((t) => t.startsWith('Sin cambios')));
   assert.equal(await p.$('#btn-aplique'), null);
   // Cambio la posición actual en "Mi bici"
@@ -80,6 +80,45 @@ try {
     await p.evaluate(() => JSON.parse(localStorage.getItem('glory-setup:chips'))),
     { maestro: 'Mid', direccion: 'Mid', dropout: 'Short' },
   );
+
+  // Presión de la horquilla activa en grande, con su máximo
+  const presion = async () => (await p.textContent('#presion-activa')).replace(/\s+/g, ' ');
+  assert.match(await presion(), /BoXXer Ultimate.*123 ?psi.*Máximo de esta horquilla: 200 psi/);
+  // Resorte instalado: selector en pasos del amortiguador; los clicks siguen al instalado
+  await p.click('[data-tab=bici]');
+  assert.equal(await p.inputValue('#resorte-instalado'), '475');
+  await p.selectOption('#resorte-instalado', '450');
+  assert.equal(await p.textContent('#montado'), 'BoXXer Ultimate · DHX2 2024 450');
+  // Cambio a la Fox 40: 4 ajustadores, el offset de 48 mm se mantiene y la presión baja
+  await p.click('.opcion[data-id=fox40_2027]');
+  await p.click('#si-cambiar');
+  assert.deepEqual(await p.$$eval('[data-offset]', (b) => b.map((x) => x.textContent)), ['44 mm', '48 mm', '52 mm', '56 mm']);
+  assert.equal(await p.textContent('[data-offset].activo'), '48 mm');
+  await p.click('[data-offset="52"]');
+  // Vivid: solo pasos de 50 lb
+  await p.click('.opcion[data-id=vivid_coil_ultimate_dh_2027]');
+  await p.click('#si-cambiar');
+  const pasos = await p.$$eval('#resorte-instalado option', (o) => o.map((x) => Number(x.value)));
+  assert.deepEqual(pasos, [250, 300, 350, 400, 450, 500, 550, 600, 650]);
+  await p.click('[data-tab=setup]');
+  await lista();
+  assert.match(await presion(), /Fox 40 2027.*74 ?psi.*Máximo de esta horquilla: 120 psi/);
+  const textoSetup = await p.textContent('#resultado');
+  assert.match(textoSetup, /Datos de Vivid Coil sin verificar con el fabricante/);
+  assert.match(textoSetup, /ABO/);
+  assert.match(textoSetup, /dial 0/);
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0, 'desborde horizontal');
+  // Vuelvo a lo montado hoy, simulando datos guardados con el id antiguo del DHX2
+  await p.evaluate(() => {
+    localStorage.setItem('glory-setup:seleccion', JSON.stringify({ horquilla: 'boxxer_ultimate_c2', amortiguador: 'dhx2_factory' }));
+    const b = JSON.parse(localStorage.getItem('glory-setup:bitacora'));
+    b[0].amortiguador = 'dhx2_factory';
+    localStorage.setItem('glory-setup:bitacora', JSON.stringify(b));
+  });
+  await p.reload();
+  await lista();
+  assert.equal(await p.textContent('#montado'), 'BoXXer Ultimate · DHX2 2024 450');
+  assert.equal(await p.evaluate(() => JSON.parse(localStorage.getItem('glory-setup:bitacora'))[0].amortiguador), 'dhx2_factory_2024');
 
   // Sin conexión después de la primera carga
   await p.evaluate(() => navigator.serviceWorker.ready);
@@ -111,7 +150,7 @@ try {
   assert.ok((await pie()).includes('v99.0.0'));
 
   assert.deepEqual(errores, []);
-  console.log('e2e OK: subdirectorio, flip chips, offline y actualización del service worker');
+  console.log('e2e OK: subdirectorio, flip chips, selectores, offline y actualización del service worker');
 } finally {
   await navegador.close();
   servidor.close();

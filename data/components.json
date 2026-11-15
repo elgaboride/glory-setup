@@ -82,17 +82,21 @@
       "avisos": [
         "Los rangos de clicks son de la ficha técnica y pueden variar 1 click entre unidades: verifica el conteo real de tu horquilla."
       ],
-      "notas": "Presión y rebote: datos oficiales de Trailhead. TODO: efecto_por_click, tokens instalados y bases reales de compresión."
+      "notas": "Presión y rebote: datos oficiales de Trailhead. TODO: efecto_por_click, tokens instalados y bases reales de compresión.",
+      "fuente": "App Trailhead de RockShox (presión y rebote) y ficha técnica del producto",
+      "confianza": "oficial",
+      "offsets_disponibles": [48],
+      "a2c_mm": 602,
+      "a2c_verificado": true
     },
     "fox40_2027": {
       "nombre": "Fox 40 2027",
-      "nombre_largo": "Fox 40 2027 GRIP X2 (aire)",
+      "nombre_largo": "Fox 40 2027 GRIP X2 (aire GlideCore)",
       "tipo_resorte": "aire",
       "recorrido_mm": 203,
       "barras_mm": 40,
-      "offset_mm": null,
-      "offset_opciones_mm": [44, 48, 52, 56],
-      "offset_verificado": false,
+      "offset_mm": 52,
+      "offset_verificado": true,
       "sag_objetivo": {
         "min": 15,
         "max": 20,
@@ -166,12 +170,94 @@
         "maximo": 5,
         "verificado": true
       },
-      "notas": "Datos del manual oficial FOX. TODO: offset (se confirma al comprarla) y efecto_por_click."
+      "notas": "Datos del manual oficial FOX. TODO: efecto_por_click.",
+      "fuente": "Manual oficial FOX \"Fork 2027 40mm\" y ficha GRIP X2",
+      "confianza": "oficial",
+      "offsets_disponibles": [44, 48, 52, 56],
+      "offset_nota": "52 mm de serie; 44, 48 y 56 son coronas aftermarket.",
+      "a2c_mm": 601.9,
+      "a2c_verificado": true
+    },
+    "boxxer_ultimate_d2_2027": {
+      "nombre": "BoXXer Ultimate D2",
+      "nombre_largo": "RockShox BoXXer Ultimate D2 2027 (Linear XL, Charger 3.2 RC2 con ButterCups, tune C5 / R55)",
+      "modelo": "FS-BXR-ULT-D2",
+      "fuente": "Página de producto SRAM (offsets, recorridos, tokens de fábrica) y ficha del distribuidor (A2C). Presión, diales, tokens instalados, rebote y sag: tabla en PDF entregada por el usuario, no publicada por SRAM.",
+      "confianza": "no_verificado",
+      "tipo_resorte": "aire",
+      "recorrido_mm": 200,
+      "recorridos_disponibles_mm": [180, 190, 200],
+      "barras_mm": 38,
+      "offset_mm": 48,
+      "offsets_disponibles": [48, 52],
+      "offset_verificado": true,
+      "a2c_mm": 605,
+      "a2c_verificado": true,
+      "sag_objetivo": {
+        "min": 20,
+        "max": 30,
+        "ideal": 25,
+        "verificado": false
+      },
+      "ajustadores": [
+        {
+          "id": "rebote",
+          "tipo": "REBOTE_UNICO",
+          "clicks_totales": null,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "TODO: total de clicks y base (Trailhead con el número de serie al comprarla)."
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "tipo_escala": "numerado",
+          "min": -7,
+          "max": 7,
+          "positivo_es_firme": true,
+          "base_dial": 0,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "Dial numerado de 15 posiciones; + = más firme (horario)."
+        },
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "tipo_escala": "numerado",
+          "min": -2,
+          "max": 2,
+          "positivo_es_firme": true,
+          "base_dial": 0,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "Dial numerado de 5 posiciones; + = más firme (horario)."
+        }
+      ],
+      "presion_base": {
+        "tabla_peso_psi": [[51, 85], [59, 100], [67.5, 120], [76.5, 140], [85.5, 160], [94.5, 180], [104, 200]],
+        "maximo_psi": 300,
+        "verificado": false,
+        "fuente": "Tabla en PDF entregada por el usuario (190-200 mm, puntos medios de cada rango)"
+      },
+      "rebote_base": {
+        "clicks_por_psi": 0.2,
+        "verificado": false,
+        "nota": "TODO: base de rebote. RockShox: +5 a 10 psi o +1 token → 1 a 2 clicks más cerrado."
+      },
+      "spacers": {
+        "nombre": "tokens",
+        "instalados": 0,
+        "maximo": 6,
+        "verificado": false,
+        "nota": "De fábrica 0 o 1 de 6 según el resorte (página de producto SRAM)."
+      },
+      "notas": "Offsets, recorridos y A2C: datos oficiales. El resto viene de una tabla no publicada por SRAM. TODO: rebote (total y base) y efecto_por_click."
     }
   },
   "amortiguadores": {
-    "dhx2_factory": {
-      "nombre": "DHX2",
+    "dhx2_factory_2024": {
+      "nombre": "DHX2 2024",
       "nombre_largo": "Fox DHX2 Factory 2024 (coil, trunnion 225×75, HSR con VVC)",
       "tipo_resorte": "coil",
       "recorrido_rueda_mm": 200,
@@ -257,11 +343,210 @@
           "725": { "LSR": [0, 1], "HSR": [0, 1], "LSC": [2, 3], "HSC": [0, 1] }
         }
       },
-      "notas": "Bases de amortiguación de la Tabla B del manual 2024. TODO: efecto_por_click y precarga_mm_por_vuelta real."
+      "notas": "Bases de amortiguación de la Tabla B del manual 2024. TODO: efecto_por_click y precarga_mm_por_vuelta real.",
+      "alias": [
+        "dhx2_factory"
+      ],
+      "fuente": "Manual oficial FOX \"Shock 2024 All Coil Shocks (DHX2 and DHX models)\"",
+      "confianza": "oficial",
+      "montaje": "225x75 trunnion",
+      "resortes": {
+        "min_lb": 200,
+        "max_lb": 725,
+        "paso_lb": 25
+      },
+      "precarga_vueltas": {
+        "min": 1,
+        "max": 2,
+        "nota": "Apretar hasta que el resorte no se mueva y luego como máximo 2 vueltas."
+      }
+    },
+    "dhx2_factory_2027": {
+      "nombre": "DHX2 2027",
+      "nombre_largo": "Fox DHX2 Factory 2027 (coil, trunnion 225×75)",
+      "fuente": "Manual oficial FOX \"Shock 2027 DHX2\"",
+      "confianza": "oficial",
+      "tipo_resorte": "coil",
+      "montaje": "225x75 trunnion",
+      "recorrido_rueda_mm": 200,
+      "carrera_mm": 75,
+      "resorte_lb": 475,
+      "resortes": {
+        "min_lb": 200,
+        "max_lb": 725,
+        "paso_lb": 25
+      },
+      "sag_objetivo": {
+        "min": 28,
+        "max": 33,
+        "ideal": 30,
+        "verificado": true
+      },
+      "precarga_mm_por_vuelta": 1.0,
+      "precarga_vueltas": {
+        "min": 1,
+        "max": 2
+      },
+      "ajustadores": [
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "clicks_totales": 8,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "clicks_totales: se asume igual que el 2024."
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "clicks_totales": 16,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "clicks_totales: se asume igual que el 2024."
+        },
+        {
+          "id": "hsr",
+          "tipo": "HSR",
+          "clicks_totales": 8,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "clicks_totales: se asume igual que el 2024."
+        },
+        {
+          "id": "lsr",
+          "tipo": "LSR",
+          "clicks_totales": 16,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "clicks_totales: se asume igual que el 2024."
+        }
+      ],
+      "base_por_resorte": {
+        "tabla": "2027",
+        "nota": "Clicks desde cerrado. Donde hay rango [min, max] se usa el menor (más amortiguación).",
+        "fuente": "Manual oficial FOX \"Shock 2027 DHX2\"",
+        "verificado": true,
+        "filas": {
+          "200": { "LSR": 14, "HSR": 8, "LSC": [11, 12], "HSC": [6, 7] },
+          "225": { "LSR": 14, "HSR": 8, "LSC": [11, 12], "HSC": [6, 7] },
+          "250": { "LSR": 13, "HSR": 7, "LSC": [11, 12], "HSC": [6, 7] },
+          "275": { "LSR": 13, "HSR": 7, "LSC": [11, 12], "HSC": [6, 7] },
+          "300": { "LSR": 12, "HSR": 7, "LSC": [11, 12], "HSC": [6, 7] },
+          "325": { "LSR": 11, "HSR": 6, "LSC": [11, 12], "HSC": [6, 7] },
+          "350": { "LSR": 11, "HSR": 6, "LSC": [9, 10], "HSC": [4, 5] },
+          "375": { "LSR": 10, "HSR": 5, "LSC": [9, 10], "HSC": [4, 5] },
+          "400": { "LSR": 10, "HSR": 5, "LSC": [9, 10], "HSC": [4, 5] },
+          "425": { "LSR": 9, "HSR": 5, "LSC": [9, 10], "HSC": [4, 5] },
+          "450": { "LSR": 8, "HSR": 4, "LSC": [9, 10], "HSC": [4, 5] },
+          "475": { "LSR": 8, "HSR": 4, "LSC": [9, 10], "HSC": [4, 5] },
+          "500": { "LSR": 7, "HSR": 3, "LSC": [9, 10], "HSC": [4, 5] },
+          "525": { "LSR": 6, "HSR": 3, "LSC": [7, 8], "HSC": [2, 3] },
+          "550": { "LSR": 6, "HSR": 2, "LSC": [7, 8], "HSC": [2, 3] },
+          "575": { "LSR": 5, "HSR": 2, "LSC": [7, 8], "HSC": [2, 3] },
+          "600": { "LSR": 4, "HSR": 2, "LSC": [7, 8], "HSC": [2, 3] },
+          "625": { "LSR": 4, "HSR": 1, "LSC": [7, 8], "HSC": [2, 3] },
+          "650": { "LSR": 4, "HSR": 1, "LSC": [7, 8], "HSC": [2, 3] },
+          "675": { "LSR": 3, "HSR": 1, "LSC": [7, 8], "HSC": [2, 3] },
+          "700": { "LSR": 2, "HSR": 1, "LSC": [7, 8], "HSC": [2, 3] },
+          "725": { "LSR": 2, "HSR": 0, "LSC": [7, 8], "HSC": [2, 3] }
+        }
+      },
+      "notas": "Bases del manual 2027. Los totales de clicks se asumen iguales al 2024 (sin verificar). TODO: efecto_por_click y precarga_mm_por_vuelta real."
+    },
+    "vivid_coil_ultimate_dh_2027": {
+      "nombre": "Vivid Coil",
+      "nombre_largo": "RockShox Vivid Coil Ultimate DH 2027 (TouchDown RC2 + ABO, sin Threshold, trunnion 225×75)",
+      "fuente": "Tabla en PDF entregada por el usuario, no publicada por SRAM",
+      "confianza": "no_verificado",
+      "tipo_resorte": "coil",
+      "montaje": "225x75 trunnion",
+      "recorrido_rueda_mm": 200,
+      "carrera_mm": 75,
+      "resorte_lb": 475,
+      "resortes": {
+        "min_lb": 250,
+        "max_lb": 650,
+        "paso_lb": 50
+      },
+      "sag_objetivo": {
+        "min": 30,
+        "max": 33,
+        "ideal": 31.5,
+        "verificado": false
+      },
+      "precarga_mm_por_vuelta": 1.0,
+      "precarga_vueltas": {
+        "min": 2,
+        "max": 5,
+        "nota": "Si necesita más de 5 vueltas, sube un resorte (+50 lb)."
+      },
+      "ajustadores": [
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "tipo_escala": "numerado",
+          "min": -2,
+          "max": 2,
+          "positivo_es_firme": true,
+          "base_dial": 0,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "Dial numerado de 5 posiciones."
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "tipo_escala": "numerado",
+          "min": -2,
+          "max": 2,
+          "positivo_es_firme": true,
+          "base_dial": 0,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "Dial numerado de 5 posiciones."
+        },
+        {
+          "id": "abo",
+          "tipo": "ABO",
+          "nombre": "ABO",
+          "descripcion": "Tope hidráulico de fin de recorrido",
+          "min": 1,
+          "max": 5,
+          "base": 1,
+          "base_rango": [1, 2],
+          "verificado": false,
+          "nota": "Hacia 5 = más resistencia al tope. No es compresión ni rebote."
+        },
+        {
+          "id": "lsr",
+          "tipo": "LSR",
+          "clicks_totales": 19,
+          "base_desde_cerrado": 10,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "20 posiciones (19 clicks). Base aproximada; Trailhead da el valor exacto con el número de serie."
+        }
+      ],
+      "rebote_por_resorte": {
+        "clicks_por_50lb": 1.5,
+        "resorte_ref_lb": null,
+        "verificado": false,
+        "nota": "Por cada +50 lb de resorte, cerrar 1-2 clicks. TODO: resorte al que corresponde la base de 10 clicks; sin ese dato la corrección no se aplica."
+      },
+      "resorte_por_peso": {
+        "nota": "Referencia cruzada del fabricante para 75 mm de carrera: [desde_kg, hasta_kg, lb_min, lb_max].",
+        "filas": [[null, 55, 250, 300], [55, 63, 300, 350], [63, 72, 350, 400], [72, 81, 400, 450], [81, 90, 450, 500], [90, 99, 500, 550], [99, null, 550, 650]],
+        "verificado": false
+      },
+      "notas": "Todos los datos vienen de una tabla no publicada por SRAM. TODO: efecto_por_click, base exacta de rebote (Trailhead) y precarga_mm_por_vuelta."
     }
   },
   "seleccion_por_defecto": {
     "horquilla": "boxxer_ultimate_c2",
-    "amortiguador": "dhx2_factory"
+    "amortiguador": "dhx2_factory_2024"
   }
 }
