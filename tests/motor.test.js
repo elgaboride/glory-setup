@@ -304,16 +304,21 @@ test('Saltos: sube HSC atrás solo si el modelo predice > 90 % de recorrido', ()
   assert.equal(poco.neumaticos.atras.psi - rec({ peso_kg: 70 }).neumaticos.atras.psi, 1);
 });
 
-test('el rebote base escala con peso y resorte', () => {
-  const liviano = rec({ peso_kg: 60 }).modelo.escala_rebote.atras;
-  const pesado = rec({ peso_kg: 110 }).modelo.escala_rebote.atras;
-  cerca(rec().modelo.escala_rebote.atras, 1, 1e-9); // condición de referencia
-  assert.ok(pesado > 1 && liviano < 1);
+test('sin tabla del fabricante, el rebote base escala con peso y resorte', () => {
   const c2 = clon(components);
-  c2.amortiguadores.dhx2_factory.resorte_lb = 550;
-  const duro = recomendar({ bike, components: c2, rules, seleccion: BOXXER, inputs: BASE });
-  assert.ok(duro.modelo.frecuencia_hz > rec().modelo.frecuencia_hz);
-  assert.ok(duro.modelo.escala_rebote.atras > 1);
+  c2.amortiguadores.sin_tabla = {
+    nombre: 'Sin tabla', tipo_resorte: 'coil', carrera_mm: 75, resorte_lb: 475, referencia_base: { peso_kg: 80, resorte_lb: 475 },
+    ajustadores: [{ id: 'lsr', tipo: 'LSR', clicks_totales: 16, base_desde_cerrado: 8, efecto_por_click: null, verificado: true }],
+  };
+  const r = (peso_kg, lb = 475) => {
+    c2.amortiguadores.sin_tabla.resorte_lb = lb;
+    return recomendar({ bike, components: c2, rules, seleccion: { horquilla: 'boxxer_ultimate_c2', amortiguador: 'sin_tabla' }, inputs: { ...BASE, peso_kg } });
+  };
+  cerca(r(80).modelo.escala_rebote.atras, 1, 1e-9); // condición de referencia
+  assert.ok(r(110).modelo.escala_rebote.atras > 1 && r(60).modelo.escala_rebote.atras < 1);
+  assert.ok(aj(r(110).amortiguador.ajustadores, 'LSR').click < aj(r(60).amortiguador.ajustadores, 'LSR').click);
+  assert.ok(r(80, 550).modelo.frecuencia_hz > r(80).modelo.frecuencia_hz);
+  assert.ok(r(80, 550).modelo.escala_rebote.atras > 1);
 });
 
 test('ajustador sin clicks_totales: aparece como "falta dato" y no rompe', () => {
@@ -372,9 +377,30 @@ test('balance: la horquilla apunta a 7-10 puntos menos de sag que la trasera', (
   const r = rec({ sag_atras: { valor: 31, unidad: '%' } });
   assert.equal(r.horquilla.sag_objetivo.ideal, 22.5);
   assert.equal(r.balance.ok, true);
-  const d = rec({ sag_atras: { valor: 31, unidad: '%' }, sag_adelante: { valor: 28, unidad: '%' }, presion_horquilla_actual: 140 });
+  const d = rec({ sag_atras: { valor: 28, unidad: '%' } }); // trasera alta → la horquilla baja su objetivo
+  cerca(d.horquilla.sag_objetivo.ideal, 21, 1e-6);
+});
+
+test('sag medido en la horquilla: corrige con psi_por_punto_sag, y solo si hace falta', () => {
+  const base = { sag_atras: { valor: 31, unidad: '%' }, peso_kg: 80 };
+  // 28 % medido con 140 psi; zona válida 21-24 % → 4 puntos × 2 psi
+  const d = rec({ ...base, sag_adelante: { valor: 28, unidad: '%' }, presion_horquilla_actual: 140 });
   assert.equal(d.balance.ok, false);
-  assert.equal(d.horquilla.presion.psi, Math.round(140 * (28 / 22.5))); // primero presión
+  assert.equal(d.horquilla.presion.psi, 148);
+  assert.match(d.horquilla.presion.porque, /estimación/);
+  // sin presión actual parte de la fórmula (123 psi)
+  assert.equal(rec({ ...base, sag_adelante: { valor: 28, unidad: '%' } }).horquilla.presion.psi, 131);
+  // en mm: 36 mm de 200 = 18 % → sube a 21 % → −6 psi
+  assert.equal(rec({ ...base, sag_adelante: { valor: 36, unidad: 'mm' }, presion_horquilla_actual: 140 }).horquilla.presion.psi, 134);
+  // dentro de la zona válida no toca nada
+  assert.equal(rec({ ...base, sag_adelante: { valor: 22, unidad: '%' }, presion_horquilla_actual: 140 }).horquilla.presion.psi, 140);
+  // la bitácora calibra la pendiente
+  const reg = (sag, psi) => ({ fecha: '2026-11-01', horquilla: 'boxxer_ultimate_c2', amortiguador: 'dhx2_factory', avisos: [], medidas: { sag_adelante_pct: sag, presion_horquilla_psi: psi } });
+  const cal = calibrar([reg(26, 120), reg(22, 132)], rules);
+  cerca(cal.componentes.boxxer_ultimate_c2.psi_por_punto_sag, 3, 1e-9);
+  const c = rec({ ...base, sag_adelante: { valor: 28, unidad: '%' }, presion_horquilla_actual: 140 }, { calibracion: cal });
+  assert.equal(c.horquilla.presion.psi, 152);
+  assert.doesNotMatch(c.horquilla.presion.porque, /estimación/);
 });
 
 // ---------- Componentes ----------
@@ -421,4 +447,200 @@ test('la bitácora ajusta sesgo_trasero y efecto_por_click, por componente', () 
   const rebota = rec({}, { calibracion: calibrar([reg(['rebota_adelante'])], rules) });
   assert.ok(aj(rebota.horquilla.ajustadores, 'REBOTE_UNICO').click < aj(rec().horquilla.ajustadores, 'REBOTE_UNICO').click);
   assert.deepEqual(calibrar([], rules).componentes, {});
+});
+
+// ---------- Segunda tanda: datos oficiales, chips actuales y PWA ----------
+
+const TRAILHEAD = components.horquillas.boxxer_ultimate_c2.presion_base.puntos_fuente.filas;
+
+test('BoXXer: presión y rebote coinciden con los 6 puntos de Trailhead', () => {
+  assert.equal(TRAILHEAD.length, 6);
+  for (const [peso_kg, psi, rebote] of TRAILHEAD) {
+    const r = rec({ peso_kg });
+    assert.ok(Math.abs(r.horquilla.presion.psi - psi) <= 1, `${peso_kg} kg: ${r.horquilla.presion.psi} psi vs ${psi}`);
+    const rb = aj(r.horquilla.ajustadores, 'REBOTE_UNICO');
+    assert.ok(Math.abs(rb.click - rebote) <= 1, `${peso_kg} kg: rebote ${rb.click} vs ${rebote}`);
+    assert.equal(rb.base_de_tabla, true);
+    assert.equal(r.horquilla.presion.provisoria, false);
+  }
+  // con estos datos el calce es exacto
+  assert.deepEqual(TRAILHEAD.map(([peso_kg]) => rec({ peso_kg }).horquilla.presion.psi), TRAILHEAD.map((f) => f[1]));
+  assert.deepEqual(TRAILHEAD.map(([peso_kg]) => aj(rec({ peso_kg }).horquilla.ajustadores, 'REBOTE_UNICO').click), TRAILHEAD.map((f) => f[2]));
+});
+
+test('BoXXer: la presión crece con el peso, el rebote nunca sale de 0…18 y se avisa sobre 200 psi', () => {
+  let previa = 0;
+  for (let peso_kg = 40; peso_kg <= 160; peso_kg += 2.5) {
+    for (const extra of [{}, { feel: 4, saltos: true, tipo: 'Tech', grip: 'Low' }, { feel: -4 }]) {
+      const r = rec({ peso_kg, ...extra });
+      const rb = aj(r.horquilla.ajustadores, 'REBOTE_UNICO');
+      assert.ok(rb.click >= 0 && rb.click <= 18 && rb.base_click >= 0 && rb.base_click <= 18);
+      assert.ok(r.horquilla.presion.psi <= 200);
+    }
+    const psi = rec({ peso_kg }).horquilla.presion.psi;
+    assert.ok(psi >= previa, `${peso_kg} kg`);
+    previa = psi;
+  }
+  const pesado = rec({ peso_kg: 160 });
+  assert.equal(pesado.horquilla.presion.psi, 200);
+  assert.equal(pesado.horquilla.presion.supera_maximo, true);
+  assert.ok(pesado.avisos.some((a) => a.includes('200 psi')));
+  assert.ok(!rec({ peso_kg: 90 }).avisos.some((a) => a.includes('máximo')));
+});
+
+test('BoXXer: más presión por los modifiers = menos clicks de rebote (clicks_por_psi)', () => {
+  const c2 = clon(components);
+  const r2 = clon(rules);
+  r2.suspension_feel.horquilla_psi = { delta: 10, cada_pasos: 1 };
+  r2.suspension_feel.por_paso = [];
+  const con = (feel) => recomendar({ bike, components: c2, rules: r2, seleccion: BOXXER, inputs: { ...BASE, feel } });
+  assert.equal(con(2).horquilla.presion.psi - con(0).horquilla.presion.psi, 20);
+  assert.equal(aj(con(0).horquilla.ajustadores, 'REBOTE_UNICO').base_click, 9);
+  assert.equal(aj(con(2).horquilla.ajustadores, 'REBOTE_UNICO').base_click, Math.round(10 - 0.118 * (143 - 113)));
+  assert.ok(aj(con(-2).horquilla.ajustadores, 'REBOTE_UNICO').base_click > 9);
+});
+
+test('BoXXer: compresión con base provisoria al medio (LSC 9, HSC 2) y aviso de conteo real', () => {
+  const r = rec();
+  assert.equal(aj(r.horquilla.ajustadores, 'LSC').click, 9);
+  assert.equal(aj(r.horquilla.ajustadores, 'HSC').click, 2);
+  assert.equal(aj(r.horquilla.ajustadores, 'LSC').verificado, false);
+  assert.equal(aj(r.horquilla.ajustadores, 'REBOTE_UNICO').verificado, true);
+  assert.ok(r.avisos_componentes.some((a) => a.includes('conteo real')));
+  assert.ok(r.sin_verificar.horquilla.includes('efecto por click'));
+});
+
+test('cambiar de horquilla cambia la tabla de presión y los ajustadores sin tocar código', () => {
+  const b = rec({ peso_kg: 82 });
+  const f = recomendar({ bike, components, rules, seleccion: FOX, inputs: { ...BASE, peso_kg: 82 } });
+  assert.equal(b.horquilla.presion.psi, 125);
+  assert.equal(f.horquilla.presion.psi, 76);
+  assert.equal(b.horquilla.ajustadores.length, 3);
+  assert.equal(f.horquilla.ajustadores.length, 4);
+});
+
+test('Fox 40 con 82 kg: 76 psi, LSR 6, HSR 6, LSC 10, HSC 5; con 70 kg: ≈ 65,7 psi y rebote 8', () => {
+  const fox = (peso_kg, extra = {}) => recomendar({ bike, components, rules, seleccion: FOX, inputs: { ...BASE, peso_kg, ...extra }, offsetUsuario: 48 });
+  const r = fox(82);
+  assert.equal(r.horquilla.presion.psi, 76);
+  assert.deepEqual(
+    Object.fromEntries(r.horquilla.ajustadores.map((a) => [a.tipo, a.click])),
+    { HSC: 5, LSC: 10, HSR: 6, LSR: 6 },
+  );
+  assert.equal(aj(r.horquilla.ajustadores, 'LSC').clicks_totales, 18);
+  const s = fox(70);
+  cerca(s.horquilla.presion.psi_exacta, 65.7, 0.05);
+  assert.equal(s.horquilla.presion.psi, 66);
+  assert.equal(aj(s.horquilla.ajustadores, 'LSR').click, 8);
+  assert.equal(aj(s.horquilla.ajustadores, 'HSR').click, 8);
+  // límites de rango: gana el rango más pesado; fuera de la tabla, el extremo
+  assert.equal(aj(fox(59).horquilla.ajustadores, 'LSR').click, 9);
+  assert.equal(aj(fox(58.9).horquilla.ajustadores, 'LSR').click, 10);
+  assert.equal(aj(fox(113).horquilla.ajustadores, 'LSR').click, 2);
+  assert.equal(aj(fox(50).horquilla.ajustadores, 'LSR').click, 10);
+  // HSR tiene 8 clicks: 10 de la tabla se acota y se explica
+  const hsr = aj(fox(56).horquilla.ajustadores, 'HSR');
+  assert.equal(hsr.click, 8);
+  assert.match(hsr.porque, /acotado/);
+  // spacers: 2 de fábrica, +1 con saltos, máximo 5
+  assert.equal(r.horquilla.tokens.cantidad, 2);
+  assert.equal(fox(82, { saltos: true }).horquilla.tokens.cantidad, 3);
+});
+
+test('Fox 40: sag objetivo 15-20 %, balance con ese sag y presión nunca sobre 120 psi', () => {
+  for (let peso_kg = 45; peso_kg <= 170; peso_kg += 5) {
+    for (const extra of [{}, { feel: 4, saltos: true }, { sag_adelante: { valor: 30, unidad: '%' } }]) {
+      const r = recomendar({ bike, components, rules, seleccion: FOX, inputs: { ...BASE, peso_kg, ...extra } });
+      assert.equal(r.horquilla.sag_objetivo.min, 15);
+      assert.equal(r.horquilla.sag_objetivo.max, 20);
+      assert.ok(r.horquilla.sag_objetivo.ideal >= 15 && r.horquilla.sag_objetivo.ideal <= 20);
+      assert.ok(r.horquilla.presion.psi <= 120, `${peso_kg} kg: ${r.horquilla.presion.psi}`);
+    }
+  }
+  const r = recomendar({ bike, components, rules, seleccion: FOX, inputs: { ...BASE, peso_kg: 92 } });
+  cerca(r.horquilla.sag_objetivo.mm, 0.175 * 203, 0.01);
+  assert.equal(r.balance.ok, true); // 30 % atrás con 17,5 % adelante es el balance esperado para esta horquilla
+  assert.equal(rec().horquilla.sag_objetivo.min, 20); // la BoXXer mantiene 20-25 %
+  const tope = recomendar({ bike, components, rules, seleccion: FOX, inputs: { ...BASE, peso_kg: 170 } });
+  assert.equal(tope.horquilla.presion.psi, 120);
+  assert.ok(tope.avisos.some((a) => a.includes('120 psi')));
+});
+
+test('DHX2 tabla B: base de 475 lb = LSR 5, HSR 4, LSC 9, HSC 4; si recomienda 450, usa la fila de 450', () => {
+  const bases = (r) => Object.fromEntries(r.amortiguador.ajustadores.map((a) => [a.tipo, a.base_click]));
+  const con475 = rec({ peso_kg: 92 });
+  assert.equal(con475.amortiguador.resorte.veredicto, 'mantener');
+  assert.deepEqual(bases(con475), { HSC: 4, LSC: 9, HSR: 4, LSR: 5 });
+  assert.match(aj(con475.amortiguador.ajustadores, 'LSC').porque, /tabla B, resorte 475 lb: 9-10/);
+  assert.equal(con475.amortiguador.palanca, 'Palanca en Open');
+  cerca(con475.amortiguador.sag_objetivo.mm, 22.5, 1e-9);
+
+  const a450 = [78, 80, 82, 84, 85, 86, 88].map((peso_kg) => rec({ peso_kg })).find((r) => r.amortiguador.resorte.recomendado_lb === 450);
+  assert.ok(a450, 'ningún peso de prueba recomienda 450 lb');
+  assert.equal(a450.amortiguador.resorte.veredicto, 'cambiar');
+  assert.deepEqual(bases(a450), { HSC: 5, LSC: 10, HSR: 4, LSR: 5 });
+  assert.equal(a450.amortiguador.resorte_para_clicks_lb, 450);
+});
+
+test('DHX2 tabla B: completa, y un valor sobre clicks_totales se acota y se explica', () => {
+  const filas = components.amortiguadores.dhx2_factory.base_por_resorte.filas;
+  assert.equal(Object.keys(filas).length, 22);
+  assert.deepEqual(filas['200'].LSC, [16, 17]);
+  assert.deepEqual(filas['725'], { LSR: [0, 1], HSR: [0, 1], LSC: [2, 3], HSC: [0, 1] });
+  const totales = Object.fromEntries(components.amortiguadores.dhx2_factory.ajustadores.map((a) => [a.tipo, a.clicks_totales]));
+  assert.deepEqual(totales, { HSC: 8, LSC: 16, HSR: 8, LSR: 16 });
+  const c2 = clon(components);
+  c2.amortiguadores.dhx2_factory.base_por_resorte.filas['200'].LSC = [17, 18];
+  c2.amortiguadores.dhx2_factory.resorte_lb = 200;
+  const r = recomendar({ bike, components: c2, rules, seleccion: BOXXER, inputs: { ...BASE, peso_kg: 40, sag_atras: { valor: 30, unidad: '%' } } });
+  const lsc = aj(r.amortiguador.ajustadores, 'LSC');
+  assert.equal(lsc.base_click, 16);
+  assert.match(lsc.porque, /17 acotado al máximo de 16/);
+});
+
+test('Actual → Recomendado: "Sin cambios" si coinciden y el detalle correcto si difieren', () => {
+  const igual = rec().geometria; // por defecto Mid / Mid / Short = baseline
+  assert.deepEqual(igual.actuales, { maestro: 'Mid', direccion: 'Mid', dropout: 'Short' });
+  for (const c of ['maestro', 'direccion', 'dropout']) {
+    assert.equal(igual[c].cambia, false);
+    assert.equal(igual[c].texto, 'Sin cambios');
+  }
+  assert.equal(igual.hay_cambios, false);
+
+  const g = rec({}, { chipsActuales: { maestro: 'Low', direccion: 'Long', dropout: 'Long' } }).geometria;
+  assert.equal(g.hay_cambios, true);
+  assert.equal(g.maestro.actual, 'Low');
+  assert.equal(g.maestro.recomendado, 'Mid');
+  assert.equal(g.maestro.texto, 'Low → Mid: reach +3,7 mm · trail −2,7 mm · dirección +0,4° · caída del pedalier −5 mm');
+  assert.equal(g.direccion.texto, 'Long → Mid: reach −5 mm');
+  assert.match(g.dropout.texto, /^Long → Short: /);
+  // la geometría mostrada es la ACTUAL, con el offset de la horquilla activa
+  cerca(g.medidas.trail_mm, 150.7, 0.06);
+  cerca(g.medidas.reach_mm, 461.2 + 5, 1e-9);
+  cerca(g.medidas_recomendadas.trail_mm, 148.0, 0.06);
+  // la posición actual no cambia la recomendación
+  assert.deepEqual(g.recomendados, igual.recomendados);
+  assert.deepEqual(rec({}, { chipsActuales: { maestro: 'Inventado' } }).geometria.actuales.maestro, 'Mid');
+});
+
+test('PWA: rutas relativas, y todo lo que precarga el service worker existe', () => {
+  const raiz = new URL('../', import.meta.url);
+  const txt = (f) => readFileSync(new URL(f, raiz), 'utf8');
+  const manifest = JSON.parse(txt('manifest.webmanifest'));
+  assert.equal(manifest.start_url, './');
+  assert.equal(manifest.scope, './');
+  for (const i of manifest.icons) assert.ok(!i.src.startsWith('/'));
+  const sw = txt('sw.js');
+  const lista = [...sw.matchAll(/^\s*'([^']+)',$/gm)].map((m) => m[1]);
+  assert.ok(lista.length >= 15);
+  for (const f of lista) {
+    assert.ok(!f.startsWith('/') && !f.startsWith('http'), `ruta absoluta: ${f}`);
+    if (f !== './') assert.doesNotThrow(() => readFileSync(new URL(f, raiz)), `falta ${f}`);
+  }
+  for (const f of ['version.js', 'js/app.js', 'js/almacen.js', 'data/rules.json']) assert.ok(lista.includes(f), `no se precarga ${f}`);
+  assert.match(sw, /importScripts\('version\.js'\)/);
+  assert.doesNotMatch(txt('index.html'), /(href|src)="\//);
+  assert.match(txt('version.js'), /GLORY_VERSION = '\d+\.\d+\.\d+'/);
+  // el service worker nuevo espera a que el usuario acepte: no reemplaza la app a mitad de uso
+  assert.match(sw, /SKIP_WAITING/);
 });

@@ -33,6 +33,25 @@ export function calibrar(bitacora, rules) {
       aplicarComponente(cal, reg.amortiguador, fb.amortiguador, lim);
     }
   }
+  // psi_por_punto_sag: pendiente presión–sag de las salidas donde se midió el
+  // sag de la horquilla junto con la presión usada (mínimos cuadrados).
+  const porHorquilla = {};
+  for (const reg of orden) {
+    const m = reg.medidas;
+    if (!reg.horquilla || !(m?.sag_adelante_pct > 0) || !(m?.presion_horquilla_psi > 0)) continue;
+    (porHorquilla[reg.horquilla] ??= []).push([m.sag_adelante_pct, m.presion_horquilla_psi]);
+  }
+  for (const [id, pts] of Object.entries(porHorquilla)) {
+    if (pts.length < 2) continue;
+    const ms = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+    const mp = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const varS = pts.reduce((a, p) => a + (p[0] - ms) ** 2, 0);
+    if (varS < 0.5) continue; // todas las mediciones con casi el mismo sag: no hay pendiente
+    const pendiente = -pts.reduce((a, p) => a + (p[0] - ms) * (p[1] - mp), 0) / varS;
+    if (!(pendiente > 0)) continue;
+    const c = (cal.componentes[id] ??= { efecto_mult: {}, bias: {}, presion_mult: 1 });
+    c.psi_por_punto_sag = clamp(pendiente, lim.psi_por_punto_sag ?? [0.5, 6]);
+  }
   return cal;
 }
 
@@ -48,6 +67,7 @@ export function resumenCalibracion(cal, rules, components) {
     for (const [t, m] of Object.entries(c.efecto_mult)) partes.push(`efecto ${t} ×${m.toFixed(2)}`);
     for (const [t, b] of Object.entries(c.bias)) partes.push(`${t} +${Math.round(b * 100)} %`);
     if (c.presion_mult !== 1) partes.push(`presión ×${c.presion_mult.toFixed(2)}`);
+    if (c.psi_por_punto_sag != null) partes.push(`${c.psi_por_punto_sag.toFixed(1)} psi por punto de sag`);
     if (partes.length) lineas.push(`${nombre}: ${partes.join(', ')}`);
   }
   return lineas;

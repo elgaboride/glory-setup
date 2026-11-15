@@ -115,7 +115,7 @@
   },
   "calibracion": {
     "nota": "Cada registro de la bitácora con estos avisos mueve los parámetros calibrables. 'efecto_mult' multiplica efecto_por_click (< 1 = cada click hace menos de lo supuesto); 'bias' es amortiguación extra permanente (fracción del rango).",
-    "limites": { "efecto_mult": [0.5, 1.5], "bias": [-0.25, 0.25], "impacto_mult": [0.6, 1.8], "presion_mult": [0.85, 1.2] },
+    "limites": { "efecto_mult": [0.5, 1.5], "bias": [-0.25, 0.25], "impacto_mult": [0.6, 1.8], "presion_mult": [0.85, 1.2], "psi_por_punto_sag": [0.5, 6] },
     "feedback": {
       "tope_atras": {
         "etiqueta": "Hizo tope atrás",

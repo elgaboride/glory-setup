@@ -61,7 +61,7 @@ p { margin: 8px 0; }
 
 main {
   max-width: 640px; margin: 0 auto;
-  padding: 14px 16px calc(env(safe-area-inset-bottom) + 104px);
+  padding: 14px 16px 8px;
   outline: none;
 }
 .tarjeta {
@@ -289,3 +289,20 @@ legend small { display: block; color: var(--suave); font-weight: 500; font-size:
 #toast.visible { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Segunda tanda */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.de-a { display: inline-flex; align-items: baseline; gap: 8px; }
+.de-a s { color: var(--suave); font-weight: 600; font-size: 1.1rem; text-decoration-thickness: 2px; }
+.de-a i { font-style: normal; color: var(--acento); }
+.cambio { font-size: .92rem; font-weight: 700; margin: 6px 0 0; }
+.cambio.ok { color: var(--ok); }
+.cambio.alerta { color: var(--alerta); }
+.btn-sec.ancho { width: 100%; margin-top: 14px; border-color: var(--acento); }
+h3 small { text-transform: none; letter-spacing: 0; font-weight: 500; display: block; margin-top: 2px; }
+.pie { max-width: 640px; margin: 0 auto; padding: 4px 16px calc(env(safe-area-inset-bottom) + 96px); text-align: center; color: var(--suave); font-size: .75rem; }
+#aviso-version {
+  position: sticky; top: calc(env(safe-area-inset-top) + 69px); z-index: 6; display: block; width: 100%;
+  min-height: 56px; padding: 12px 16px; border: 0; background: var(--acento); color: var(--sobre-acento); font-weight: 800; font-size: 1rem;
+}
+#aviso-version[hidden] { display: none; }

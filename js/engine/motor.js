@@ -56,7 +56,7 @@ export function clickParaAmortiguacion(D, objetivo) {
   return mejor;
 }
 
-function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote }) {
+function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote, baseTabla }) {
   const tipoRegla = aj.tipo === 'REBOTE_UNICO' ? 'LSR' : aj.tipo;
   const etiquetaExtremo = extremo === 'adelante' ? 'adelante' : 'atrás';
   const base = {
@@ -78,8 +78,12 @@ function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote
     };
   }
   const total = aj.clicks_totales;
-  const baseProvisoria = !Number.isInteger(aj.base_desde_cerrado);
-  const clickBase = clamp(baseProvisoria ? Math.round(total / 2) : aj.base_desde_cerrado, 0, total);
+  // Prioridad de la base: tabla del componente (por presión, peso o resorte),
+  // después base_desde_cerrado y, si falta todo, la mitad del rango.
+  const baseProvisoria = !baseTabla && !Number.isInteger(aj.base_desde_cerrado);
+  const baseCruda = baseTabla ? Math.round(baseTabla.valor) : baseProvisoria ? Math.round(total / 2) : aj.base_desde_cerrado;
+  const clickBase = clamp(baseCruda, 0, total);
+  const baseAcotada = baseCruda !== clickBase;
   const efectoProvisorio = aj.efecto_por_click == null;
   const mult = calComp?.efecto_mult?.[tipoRegla] ?? 1;
   const bias = calComp?.bias?.[tipoRegla] ?? 0;
@@ -92,14 +96,18 @@ function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote
   const deltaRef = propias.reduce((s, c) => s + c.delta, 0);
 
   const esRebote = !!ES_REBOTE[aj.tipo];
-  const escala = esRebote ? escalaRebote : 1;
+  // Con base de tabla, el peso y el resorte ya vienen incluidos: no se reescala.
+  const escala = esRebote && !baseTabla ? escalaRebote : 1;
   const objetivo = D[clickBase] * escala - deltaRef * efRef + bias;
   const click = clickParaAmortiguacion(D, objetivo);
   const medioPaso = Math.abs(D[0] - D[1]) / 2;
   const enLimite = objetivo > D[0] + medioPaso || objetivo < D[total] - medioPaso;
 
   const detalle = [];
-  detalle.push(`Base: ${clickBase} desde cerrado${baseProvisoria ? ' (provisoria: mitad del rango, falta base_desde_cerrado)' : ''}.`);
+  const origenBase = baseTabla ? baseTabla.texto : baseProvisoria ? 'provisoria: mitad del rango, falta base_desde_cerrado' : aj.verificado === true ? '' : 'provisoria';
+  const notaAcotada = baseAcotada ? `${baseCruda} acotado al máximo de ${total}` : '';
+  const parentesis = [origenBase, notaAcotada].filter(Boolean).join('; ');
+  detalle.push(`Base: ${clickBase} desde cerrado${parentesis ? ` (${parentesis})` : ''}.`);
   detalle.push(`Efecto por click: ${num(Math.abs(D[0] - D[1]) * 100, 1)} % del rango${efectoProvisorio ? ' (provisorio: lineal)' : ''}${mult !== 1 ? `, calibrado ×${num(mult, 2)}` : ''}.`);
   if (esRebote && Math.abs(escala - 1) > 0.005) {
     detalle.push(`Rebote escalado ×${num(escala, 2)} por frecuencia natural y masa (${escala > 1 ? 'más' : 'menos'} amortiguación que la base).`);
@@ -114,11 +122,12 @@ function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote
   if (esRebote && Math.abs(escala - 1) > 0.005) partes.push(`peso/resorte ×${num(escala, 2)}`);
   for (const c of propias) partes.push(c.porque ? `${c.fuente} (${c.porque})` : c.fuente);
   if (bias) partes.push('bitácora');
+  const baseTxt = `Base ${clickBase}${parentesis ? ` (${parentesis})` : ''}`;
   let porque;
   if (click === clickBase) {
-    porque = partes.length ? `Base ${clickBase}: ${partes.join(' · ')} se compensan o no alcanzan un click` : `Base ${clickBase}: sin cambios con estos modifiers`;
+    porque = partes.length ? `${baseTxt}: ${partes.join(' · ')} se compensan o no alcanzan un click` : `${baseTxt}: sin cambios con estos modifiers`;
   } else {
-    porque = `Base ${clickBase} → ${click}: ${partes.join(' · ') || 'ajuste del modelo'}`;
+    porque = `${baseTxt} → ${click}: ${partes.join(' · ') || 'ajuste del modelo'}`;
   }
   if (ignoradas.length) porque += ' · HSR ignorado (rebote único)';
   if (enLimite) porque += ' · al límite del rango';
@@ -129,6 +138,8 @@ function resolverAjustador({ aj, extremo, contribs, rules, calComp, escalaRebote
     click,
     base_click: clickBase,
     base_provisoria: baseProvisoria,
+    base_de_tabla: !!baseTabla,
+    base_acotada: baseAcotada,
     efecto_provisorio: efectoProvisorio,
     en_limite: enLimite,
     hsr_ignorado: ignoradas.length > 0,
@@ -177,10 +188,76 @@ function presionBase(comp, pesoKg) {
   const pb = comp.presion_base;
   if (pb == null) return null;
   if (typeof pb === 'number') return pb;
+  if (pb.formula && typeof pb.formula.psi_por_kg === 'number') return (pb.formula.psi_fijo ?? 0) + pb.formula.psi_por_kg * pesoKg;
   if (Array.isArray(pb.tabla_peso_psi) && pb.tabla_peso_psi.length) return interpolarTabla(pb.tabla_peso_psi, pesoKg);
   if (typeof pb.psi_por_kg === 'number') return pb.psi_por_kg * pesoKg + (pb.psi_fijo ?? 0);
   if (typeof pb.psi === 'number') return pb.psi;
   return null;
+}
+
+// Base de rebote propia del componente: derivada de la presión (Trailhead) o
+// de una tabla por peso, corregida por clicks_por_psi si la presión cambia.
+export function reboteBase(comp, pesoKg, psiFinal, psiTabla) {
+  const rb = comp.rebote_base;
+  if (!rb) return null;
+  const tipos = rb.tipos ?? ['LSR', 'HSR', 'REBOTE_UNICO'];
+  if (rb.desde_presion && psiFinal != null) {
+    const d = rb.desde_presion;
+    return { tipos, valor: d.clicks_ref - d.clicks_por_psi * (psiFinal - d.psi_ref), texto: `${num(psiFinal, 0)} psi, ${rb.fuente_corta ?? 'tabla del fabricante'}` };
+  }
+  const filas = rb.tabla_peso?.filas;
+  if (Array.isArray(filas) && filas.length) {
+    const orden = [...filas].sort((a, b) => a[0] - b[0]);
+    // En un límite exacto gana el rango más pesado.
+    let fila = orden.findLast((f) => pesoKg >= f[0]) ?? orden[0];
+    if (pesoKg >= orden[orden.length - 1][1]) fila = orden[orden.length - 1];
+    const dPsi = psiFinal != null && psiTabla != null ? psiFinal - Math.round(psiTabla) : 0;
+    const ajuste = (rb.clicks_por_psi ?? 0) * dPsi;
+    return {
+      tipos,
+      valor: fila[2] - ajuste,
+      texto: `${rb.fuente_corta ?? 'tabla del fabricante'} para ${fila[0]}-${fila[1]} kg${Math.round(fila[2] - ajuste) !== fila[2] ? `, ${conSigno(dPsi, 0)} psi` : ''}`,
+    };
+  }
+  return null;
+}
+
+// Base de amortiguación según el resorte (tabla del fabricante). Donde hay
+// rango se usa el menor valor (más amortiguación).
+export function basePorResorte(comp, resorteLb, tipo) {
+  const filas = comp.base_por_resorte?.filas;
+  if (!filas || !Number.isFinite(resorteLb)) return null;
+  const claves = Object.keys(filas).map(Number).sort((a, b) => a - b);
+  if (!claves.length) return null;
+  const clave = claves.reduce((m, k) => (Math.abs(k - resorteLb) < Math.abs(m - resorteLb) ? k : m), claves[0]);
+  const celda = filas[String(clave)]?.[tipo];
+  if (celda == null) return null;
+  const [min, max] = Array.isArray(celda) ? [celda[0], celda[celda.length - 1]] : [celda, celda];
+  const nombreTabla = comp.base_por_resorte.tabla ? `tabla ${comp.base_por_resorte.tabla}` : 'tabla';
+  return { valor: min, texto: `${nombreTabla}, resorte ${clave} lb: ${min === max ? min : `${min}-${max}`}` };
+}
+
+const CHIPS = ['maestro', 'direccion', 'dropout'];
+
+// Qué cambia al mover UN chip desde la posición actual a la recomendada.
+function compararChip(bike, chip, actuales, recomendado, offset) {
+  const actual = actuales[chip];
+  if (actual === recomendado) return { actual, recomendado, cambia: false, texto: 'Sin cambios' };
+  if (chip === 'dropout') {
+    const d = bike.geometria.dropout[recomendado]?.descripcion;
+    return { actual, recomendado, cambia: true, texto: `${actual} → ${recomendado}${d ? `: ${d.charAt(0).toLowerCase()}${d.slice(1)}` : ''}` };
+  }
+  const antes = geometriaResultante(bike, actuales, offset);
+  const despues = geometriaResultante(bike, { ...actuales, [chip]: recomendado }, offset);
+  const campos = [
+    ['reach', 'reach_mm', ' mm', 1], ['trail', 'trail_mm', ' mm', 1],
+    ['dirección', 'angulo_direccion', '°', 1], ['caída del pedalier', 'caida_pedalier_mm', ' mm', 1],
+  ];
+  const partes = campos
+    .map(([n, k, u, dec]) => [n, despues[k] - antes[k], u, dec])
+    .filter(([, d]) => Math.abs(d) >= 0.05)
+    .map(([n, d, u, dec]) => `${n} ${conSigno(d, dec)}${u}`);
+  return { actual, recomendado, cambia: true, texto: `${actual} → ${recomendado}: ${partes.join(' · ')}` };
 }
 
 function sagAPct(medida, totalMm) {
@@ -198,7 +275,10 @@ export function nombreMontado(components, seleccion) {
 export function camposSinVerificar(comp) {
   const lista = [];
   for (const aj of comp.ajustadores ?? []) if (aj.verificado !== true) lista.push(NOMBRE_TIPO[aj.tipo] ?? aj.id);
+  if ((comp.ajustadores ?? []).some((aj) => aj.efecto_por_click == null)) lista.push('efecto por click');
+  if (comp.sag_objetivo && comp.sag_objetivo.verificado !== true) lista.push('sag objetivo');
   if (comp.presion_base && comp.presion_base.verificado !== true) lista.push('presión base');
+  if (comp.presion_base?.psi_por_punto_sag != null && comp.presion_base.psi_por_punto_sag_verificado !== true) lista.push('psi por punto de sag');
   if (comp.spacers && comp.spacers.verificado !== true) lista.push(comp.spacers.nombre ?? 'spacers');
   if ('offset_verificado' in comp && comp.offset_verificado !== true) lista.push('offset');
   return lista;
@@ -208,7 +288,7 @@ const ETIQUETA_FEEL = (v) => (v === 0 ? 'Feel 0' : `Feel ${v > 0 ? 'Firm' : 'Sof
 
 // ---------- Recomendación completa ----------
 
-export function recomendar({ bike, components, rules, seleccion, inputs, calibracion, offsetUsuario }) {
+export function recomendar({ bike, components, rules, seleccion, inputs, calibracion, offsetUsuario, chipsActuales }) {
   const sel = { ...components.seleccion_por_defecto, ...seleccion };
   const horquilla = components.horquillas[sel.horquilla];
   const amortiguador = components.amortiguadores[sel.amortiguador];
@@ -240,7 +320,13 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   const chipMaestro = decidirChip(rules.geometria.maestro, ctx);
   const chipDireccion = decidirChip(rules.geometria.direccion, ctx);
   const chipDropout = decidirChip(rules.geometria.dropout, ctx);
-  const medidas = geometriaResultante(bike, { maestro: chipMaestro.valor, direccion: chipDireccion.valor }, offset);
+  const recomendados = { maestro: chipMaestro.valor, direccion: chipDireccion.valor, dropout: chipDropout.valor };
+  // Posición en que está montada la bici hoy; solo se usa para mostrar y comparar.
+  const actuales = { ...bike.geometria.baseline };
+  for (const c of CHIPS) if (chipsActuales?.[c] != null && bike.geometria[c]?.[chipsActuales[c]]) actuales[c] = chipsActuales[c];
+  const medidas = geometriaResultante(bike, actuales, offset);
+  const medidasRecomendadas = geometriaResultante(bike, recomendados, offset);
+  const comparacion = Object.fromEntries(CHIPS.map((c) => [c, compararChip(bike, c, actuales, recomendados[c], offset)]));
 
   // ----- Modelo físico trasero -----
   const cin = crearCinematica(bike);
@@ -249,7 +335,7 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   const vueltasMin = obj.precarga_vueltas.min;
   const vueltasMax = obj.precarga_vueltas.max;
   const esCoil = amortiguador.tipo_resorte === 'coil' && Number.isFinite(amortiguador.resorte_lb);
-  const sagObjT = obj.sag_amortiguador_pct;
+  const sagObjT = { ...obj.sag_amortiguador_pct, ...(amortiguador.sag_objetivo ?? {}) };
 
   let sesgo = clamp(cal.sesgo_trasero, ...rules.modelo.sesgo_limites);
   let origenSesgo = sesgo === rules.modelo.sesgo_trasero ? 'por defecto' : 'calibrado con la bitácora';
@@ -339,8 +425,11 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   ctx.uso_recorrido = impacto.uso;
 
   // ----- Horquilla: sag, balance y presión -----
-  const sagObjH = obj.sag_horquilla_pct;
-  const bal = obj.balance_puntos;
+  const sagObjH = { ...obj.sag_horquilla_pct, ...(horquilla.sag_objetivo ?? {}) };
+  // La meta de balance (7-10 puntos) está definida para los sag de referencia de
+  // rules.json; se desplaza según el sag objetivo de los componentes activos.
+  const corrBal = (obj.sag_horquilla_pct.ideal - sagObjH.ideal) + (sagObjT.ideal - obj.sag_amortiguador_pct.ideal);
+  const bal = { min: obj.balance_puntos.min + corrBal, max: obj.balance_puntos.max + corrBal, ideal: obj.balance_puntos.ideal + corrBal };
   const sagMedidoH = sagAPct(inputs.sag_adelante, horquilla.recorrido_mm);
   // Sag trasero de destino: el actual, o el que dará el resorte recomendado.
   const sagAtrasPct = veredicto === 'cambiar' ? sagIdealCatalogo.pct_shock : sagFinal.pct_shock;
@@ -350,7 +439,7 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
     clamp(sagObjH.ideal, sagAtrasPct - bal.max, sagAtrasPct - bal.min),
     sagObjH.min, sagObjH.max,
   );
-  const sagAdelanteActual = sagMedidoH ?? sagObjH.ideal;
+  const sagAdelanteActual = sagMedidoH ?? sagObjetivoH; // sin medición se asume el objetivo
   const difActual = sagAtrasPct - sagAdelanteActual;
   const difCorregida = sagAtrasPct - sagObjetivoH;
   const balance = {
@@ -365,9 +454,12 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   };
   const contribs = [];
   if (balance.ok) {
-    balance.porque = `La trasera tiene ${num(difActual)} puntos más de sag que la horquilla: nivelada (meta ${bal.min}-${bal.max}).`;
+    balance.porque = `La trasera tiene ${num(difActual)} puntos más de sag que la horquilla: nivelada (meta ${num(bal.min)}-${num(bal.max)}).`;
   } else {
-    balance.porque = `Diferencia de sag ${num(difActual)} puntos (meta ${bal.min}-${bal.max}): primero se corrige con presión${veredicto === 'cambiar' ? ' y resorte' : ''} (horquilla a ${num(sagObjetivoH)} % de sag)`;
+    balance.porque = `Diferencia de sag ${num(difActual)} puntos (meta ${num(bal.min)}-${num(bal.max)}): `
+      + (sagMedidoH != null
+        ? `primero se corrige con presión${veredicto === 'cambiar' ? ' y resorte' : ''} (horquilla hacia ${num(sagObjetivoH)} % de sag)`
+        : `la horquilla ya apunta al borde de su rango (${num(sagObjetivoH)} %)${veredicto === 'cambiar' ? ' y el resorte nuevo lo corrige' : ''}`);
     if (difCorregida > bal.max + 0.01 && veredicto !== 'cambiar') {
       const r = rules.balance.trasera_baja;
       contribs.push({ extremo: r.extremo, tipo: r.tipo, delta: r.delta_clicks, fuente: 'Balance', porque: 'trasera baja' });
@@ -388,31 +480,74 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   const pBase = esAire ? presionBase(horquilla, peso) : null;
   const pProvisoria = horquilla.presion_base?.verificado !== true;
   let presion = null;
+  let psiTabla = null; // presión de tabla/fórmula sin modifiers (referencia del rebote)
   if (esAire) {
+    const pb = horquilla.presion_base ?? {};
+    const kSag = calH.psi_por_punto_sag ?? (typeof pb.psi_por_punto_sag === 'number' ? pb.psi_por_punto_sag : null);
+    const kSagEstimado = calH.psi_por_punto_sag == null && pb.psi_por_punto_sag_verificado !== true;
+    const origen = pb.formula ? 'Fórmula' : 'Tabla';
     let psi = null;
     const partes = [];
-    if (sagMedidoH != null && presionActual != null) {
-      psi = presionActual * (sagMedidoH / sagObjetivoH);
-      partes.push(`${num(presionActual, 0)} psi dan ${num(sagMedidoH)} % de sag → corregido a ${num(sagObjetivoH)} %`);
-    } else if (pBase != null) {
+    const detalleP = [];
+    if (pBase != null) {
+      psiTabla = pBase;
       psi = pBase * (calH.presion_mult ?? 1);
-      partes.push(`Tabla${pProvisoria ? ' provisoria' : ''} para ${num(peso, 0)} kg: ${num(pBase, 0)} psi`);
-      if ((calH.presion_mult ?? 1) !== 1) partes.push(`bitácora ×${num(calH.presion_mult, 2)}`);
-      if (sagMedidoH != null) {
-        psi *= sagMedidoH / sagObjetivoH;
-        partes.push(`sag medido ${num(sagMedidoH)} % → ${num(sagObjetivoH)} % (asume que mediste con la presión de tabla)`);
-      } else if (Math.abs(sagObjetivoH - sagObjH.ideal) >= 0.05) {
-        psi *= sagObjH.ideal / sagObjetivoH;
-        partes.push(`balance: sag objetivo ${num(sagObjetivoH)} %`);
+      partes.push(`${origen}${pProvisoria ? ' provisoria' : ''} para ${num(peso)} kg: ${num(pBase)} psi`);
+      detalleP.push(pb.formula
+        ? `Presión = ${num(pb.formula.psi_fijo ?? 0)} + ${num(pb.formula.psi_por_kg, 3)} × ${num(peso)} kg = ${num(pBase)} psi${pb.fuente ? ` (${pb.fuente})` : ''}.`
+        : `Presión interpolada en la tabla por peso: ${num(pBase)} psi para ${num(peso)} kg${pb.fuente ? ` (${pb.fuente})` : ''}.`);
+      if ((calH.presion_mult ?? 1) !== 1) {
+        partes.push(`bitácora ×${num(calH.presion_mult, 2)}`);
+        detalleP.push(`Calibración de bitácora: ×${num(calH.presion_mult, 2)}.`);
+      }
+    }
+    if (sagMedidoH != null) {
+      // Solo se corrige si el sag medido está fuera del rango del componente o
+      // rompe el balance; se lleva al borde más cercano de la zona válida.
+      let lo = Math.max(sagObjH.min, sagAtrasPct - bal.max);
+      let hi = Math.min(sagObjH.max, sagAtrasPct - bal.min);
+      if (lo > hi) lo = hi = sagObjetivoH;
+      const destino = clamp(sagMedidoH, lo, hi);
+      const dSag = sagMedidoH - destino;
+      const partida = presionActual ?? psi;
+      if (Math.abs(dSag) < 0.05) {
+        if (presionActual != null) { psi = presionActual; partes.length = 0; partes.push(`Tus ${num(presionActual, 0)} psi dan ${num(sagMedidoH)} % de sag: en rango`); }
+        else partes.push(`sag medido ${num(sagMedidoH)} %: en rango`);
+        detalleP.push(`Sag medido ${num(sagMedidoH)} %: dentro de la zona válida (${num(lo)}-${num(hi)} %), sin corrección.`);
+      } else if (partida != null && kSag != null) {
+        const dPsi = dSag * kSag;
+        psi = partida + dPsi;
+        if (presionActual != null) partes.length = 0;
+        partes.push(`${presionActual != null ? `Tus ${num(presionActual, 0)} psi` : 'sag medido'}: ${num(sagMedidoH)} % → ${num(destino)} % = ${conSigno(dPsi, 0)} psi${kSagEstimado ? ' (estimación)' : ''}`);
+        detalleP.push(`Corrección por sag medido: (${num(sagMedidoH)} − ${num(destino)}) × ${num(kSag, 2)} psi por punto${kSagEstimado ? ' (estimación, se calibra con la bitácora)' : ''} = ${conSigno(dPsi)} psi sobre ${num(partida)} psi${presionActual == null ? ' (asume que mediste con la presión recomendada)' : ''}.`);
+      } else if (partida != null) {
+        psi = partida * (sagMedidoH / destino);
+        if (presionActual != null) partes.length = 0;
+        partes.push(`${presionActual != null ? `Tus ${num(presionActual, 0)} psi` : 'sag medido'}: ${num(sagMedidoH)} % → ${num(destino)} % (proporcional)`);
+        detalleP.push(`Corrección proporcional por sag medido: ${num(partida)} psi × ${num(sagMedidoH)} / ${num(destino)}${presionActual == null ? ' (asume que mediste con la presión recomendada)' : ''}.`);
       }
     }
     if (psi != null) {
-      if (psiFeel) partes.push(`${ETIQUETA_FEEL(feel)}: ${conSigno(psiFeel, 0)} psi`);
-      psi = Math.round(psi + psiFeel);
-      presion = { psi, bar: psi * PSI_A_BAR, provisoria: pProvisoria && !(sagMedidoH != null && presionActual != null), porque: partes.join(' · ') };
+      if (psiFeel) { partes.push(`${ETIQUETA_FEEL(feel)}: ${conSigno(psiFeel, 0)} psi`); detalleP.push(`${ETIQUETA_FEEL(feel)}: ${conSigno(psiFeel, 0)} psi.`); }
+      const exacta = psi + psiFeel;
+      psi = Math.round(exacta);
+      const maximo = typeof pb.maximo_psi === 'number' ? pb.maximo_psi : null;
+      let superaMaximo = false;
+      if (maximo != null && psi > maximo) {
+        superaMaximo = true;
+        avisos.push(`La presión calculada para ${horquilla.nombre} (${psi} psi) supera el máximo de ${maximo} psi: se limita a ${maximo} psi.`);
+        partes.push(`limitada al máximo de ${maximo} psi`);
+        detalleP.push(`La presión calculada (${psi} psi) supera el máximo de la horquilla: se limita a ${maximo} psi.`);
+        psi = maximo;
+      }
+      detalleP.push(`Presión recomendada: ${psi} psi.`);
+      presion = {
+        psi, psi_exacta: Math.min(exacta, maximo ?? Infinity), psi_tabla: psiTabla, bar: psi * PSI_A_BAR, maximo_psi: maximo, supera_maximo: superaMaximo,
+        provisoria: pProvisoria && presionActual == null, porque: partes.join(' · '), detalle: detalleP,
+      };
     } else {
       presion = {
-        psi: null, bar: null, provisoria: true,
+        psi: null, psi_exacta: null, psi_tabla: null, bar: null, provisoria: true, detalle: [],
         porque: `Falta la tabla de presión de ${horquilla.nombre} en components.json: infla hasta lograr ${num(sagObjetivoH)} % de sag${psiFeel ? ` y ajusta ${conSigno(psiFeel, 0)} psi por ${ETIQUETA_FEEL(feel)}` : ''}.`,
       };
     }
@@ -430,15 +565,17 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
     tokens = {
       delta: dTokens,
       cantidad: objetivoTk,
-      texto: objetivoTk != null ? `${objetivoTk} ${nombreSp}` : `+${dTokens} sobre los actuales`,
-      porque: `Saltos: +${dTokens} ${nombreSp.replace(/s$/, '')} para no hacer tope en las caídas${presion?.psi != null ? ` (o, sin abrir la horquilla, ${presion.psi + psiAlt} psi)` : ` (o +${psiAlt} psi)`}.`,
+      texto: objetivoTk != null ? `${objetivoTk}${Number.isInteger(sp.maximo) ? ` de ${sp.maximo}` : ''}` : `+${dTokens} sobre los actuales`,
+      porque: inst != null && objetivoTk === inst
+        ? `Saltos: ya estás en el máximo de ${nombreSp} (${sp.maximo}); sube ${psiAlt} psi si hace tope.`
+        : `Saltos: suma ${dTokens} a los ${nombreSp} para no hacer tope en las caídas${presion?.psi != null ? ` (o, sin abrir la horquilla, ${Math.min(presion.psi + psiAlt, presion.maximo_psi ?? Infinity)} psi)` : ` (o +${psiAlt} psi)`}.`,
     };
   } else {
     const inst = Number.isInteger(sp.instalados) ? sp.instalados : null;
     tokens = {
       delta: 0,
       cantidad: inst,
-      texto: inst != null ? `${inst} ${nombreSp}` : 'Sin cambios',
+      texto: inst != null ? `${inst}${Number.isInteger(sp.maximo) ? ` de ${sp.maximo}` : ''}` : 'Sin cambios',
       porque: `Sin saltos grandes: mantén los ${nombreSp} ${inst != null ? 'instalados' : 'que ya tienes'}.`,
     };
   }
@@ -465,10 +602,19 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
   agregar(rules.trail_grip[grip].efectos, `Grip ${grip}`);
   agregar(rSaltos.efectos, 'Saltos');
 
-  const ajH = (horquilla.ajustadores ?? []).map((aj) =>
-    resolverAjustador({ aj, extremo: 'adelante', contribs, rules, calComp: calH, escalaRebote: escalaReboteD }));
-  const ajA = (amortiguador.ajustadores ?? []).map((aj) =>
-    resolverAjustador({ aj, extremo: 'atras', contribs, rules, calComp: calA, escalaRebote: escalaReboteT }));
+  const rbH = reboteBase(horquilla, peso, presion?.psi ?? null, psiTabla);
+  const ajH = (horquilla.ajustadores ?? []).map((aj) => resolverAjustador({
+    aj, extremo: 'adelante', contribs, rules, calComp: calH, escalaRebote: escalaReboteD,
+    baseTabla: rbH && ES_REBOTE[aj.tipo] && rbH.tipos.includes(aj.tipo === 'REBOTE_UNICO' && !rbH.tipos.includes('REBOTE_UNICO') ? 'LSR' : aj.tipo) ? rbH : null,
+  }));
+  // Si se recomienda otro resorte, la base sale de la fila del resorte nuevo.
+  const resorteParaBase = esCoil ? (veredicto === 'cambiar' ? ideal.catalogo_lb : kActual) : null;
+  const rbA = reboteBase(amortiguador, peso, null, null);
+  const ajA = (amortiguador.ajustadores ?? []).map((aj) => resolverAjustador({
+    aj, extremo: 'atras', contribs, rules, calComp: calA, escalaRebote: escalaReboteT,
+    baseTabla: basePorResorte(amortiguador, resorteParaBase, aj.tipo === 'REBOTE_UNICO' ? 'LSR' : aj.tipo)
+      ?? (rbA && ES_REBOTE[aj.tipo] ? rbA : null),
+  }));
 
   // ----- Neumáticos -----
   const rn = rules.neumaticos;
@@ -526,6 +672,7 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
       ],
     },
     { titulo: 'Balance adelante/atrás', lineas: [balance.porque] },
+    ...(presion?.detalle?.length ? [{ titulo: 'Presión de la horquilla', lineas: presion.detalle }] : []),
     ...[...ajH, ...ajA].filter((a) => !a.sin_datos).map((a) => ({ titulo: a.texto, lineas: a.detalle })),
   ];
 
@@ -533,10 +680,17 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
     seleccion: sel,
     montado: nombreMontado(components, sel),
     inputs: { peso_kg: peso, feel, grip, tipo, saltos },
+    medidas_usuario: { sag_adelante_pct: sagMedidoH, sag_atras_pct: sagMedidoT, presion_horquilla_psi: presionActual },
     avisos,
+    avisos_componentes: [...(horquilla.avisos ?? []), ...(amortiguador.avisos ?? [])],
     sin_verificar: { horquilla: sinVerH, amortiguador: sinVerA },
     geometria: {
-      maestro: chipMaestro, direccion: chipDireccion, dropout: chipDropout, medidas,
+      maestro: { ...chipMaestro, ...comparacion.maestro },
+      direccion: { ...chipDireccion, ...comparacion.direccion },
+      dropout: { ...chipDropout, ...comparacion.dropout },
+      actuales, recomendados,
+      hay_cambios: CHIPS.some((c) => comparacion[c].cambia),
+      medidas, medidas_recomendadas: medidasRecomendadas,
       offset_mm: offset,
     },
     neumaticos: { adelante: neumatico('adelante'), atras: neumatico('atras') },
@@ -552,7 +706,9 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
       id: sel.amortiguador,
       nombre: amortiguador.nombre,
       es_coil: esCoil,
-      sag_objetivo: { min: sagObjT.min, max: sagObjT.max, ideal: sagObjT.ideal },
+      sag_objetivo: { min: sagObjT.min, max: sagObjT.max, ideal: sagObjT.ideal, mm: (sagObjT.ideal / 100) * cin.carrera },
+      resorte_para_clicks_lb: resorteParaBase,
+      palanca: amortiguador.palanca?.recomendada ? `Palanca en ${amortiguador.palanca.recomendada}` : null,
       sag: { ...sagFinal, medido: sagEsMedido },
       resorte: {
         actual_lb: esCoil ? kActual : null,
@@ -567,7 +723,7 @@ export function recomendar({ bike, components, rules, seleccion, inputs, calibra
         maximo: vueltasMax,
         porque: vueltas > vueltasMin
           ? `${vueltas} vueltas para bajar el sag; más que eso es señal de cambiar el resorte.`
-          : `${vueltasMin} vuelta para asentar el resorte; nunca más de ${vueltasMax}.`,
+          : `Aprieta hasta que el resorte no se mueva y da ${vueltasMin} vuelta; nunca más de ${vueltasMax}.`,
       },
       presion_base: !esCoil ? presionBase(amortiguador, peso) : null,
       ajustadores: ajA,

@@ -6,6 +6,7 @@
   "description": "PWA offline para el setup de una Giant Glory Advanced M/L mullet",
   "scripts": {
     "test": "node --test",
+    "test:e2e": "node tests/e2e/pwa.mjs",
     "start": "node scripts/servidor.mjs"
   }
 }
