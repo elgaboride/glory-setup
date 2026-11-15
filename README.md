@@ -7,11 +7,18 @@ PWA instalable y offline que recomienda el setup de **una sola bici**: Giant Glo
 ```bash
 npm start        # sirve la app en http://localhost:8080
 npm test         # tests unitarios del motor (node --test, sin dependencias)
+npm run test:e2e # prueba en navegador: subcarpeta, offline y actualización (requiere Playwright)
 ```
 
 Para el celular: publica la carpeta tal cual en cualquier hosting estático con HTTPS (por ejemplo GitHub Pages), ábrela una vez con señal y usa "Agregar a pantalla de inicio". Desde ahí funciona sin conexión.
 
-Al publicar cambios de código, sube `VERSION` en `sw.js` para renovar la caché. Los `.json` de `data/` se piden primero a la red, así que editarlos se nota al recargar con señal.
+Todas las rutas son relativas, así que funciona igual en la raíz o bajo `/glory-setup/` (GitHub Pages).
+
+### Publicar una versión nueva
+
+Sube `GLORY_VERSION` (y la fecha) en `version.js` en **cada** cambio que publiques. Es la única fuente de la versión: se muestra en el pie de la pantalla y nombra la caché del service worker. Con eso el celular detecta la versión nueva, la descarga en segundo plano y muestra "Hay una versión nueva, toca para actualizar"; al tocarlo, recarga con todo actualizado. Si no subes la versión, el código y los estilos no se renuevan en los teléfonos que ya la tienen instalada.
+
+Los `.json` de `data/` son la excepción: se piden primero a la red, así que editarlos se nota al recargar con señal, sin subir la versión.
 
 ## Dónde está cada cosa
 
@@ -59,8 +66,16 @@ Aparece solo en el selector de "Mi bici". Notas sobre los campos:
 - `tipo` ∈ `LSC`, `HSC`, `LSR`, `HSR`, `REBOTE_UNICO`. Cada componente declara su propia lista. Con `REBOTE_UNICO` se aplica el delta de LSR y el de HSR se ignora (la app lo explica). Si falta un tipo, ese ajuste no aparece.
 - `efecto_por_click`: fracción del rango que cambia cada click (0-1). Puede ser un número (lineal) o una lista con el efecto de cada click, del cerrado hacia afuera, si el manual indica que no es lineal.
 - `"unidad": "posiciones"` para ajustadores de posiciones.
-- `referencia_base`: peso y resorte para los que vale `base_desde_cerrado`. El rebote base se escala desde ahí.
-- Horquillas: además `recorrido_mm`, `offset_mm` (o `null` + `offset_opciones_mm` para elegirlo en la app), `presion_base` (`tabla_peso_psi: [[kg, psi], ...]` o `psi_por_kg`) y `spacers`.
+- `sag_objetivo` (`min`, `max`, `ideal` en %): cada componente trae el suyo; el modelo y el balance adelante/atrás usan el del componente activo. La meta de balance de `rules.json` (7-10 puntos) vale para 22,5 % adelante y 30 % atrás, y se desplaza con el sag ideal de cada componente.
+- Horquillas: además `recorrido_mm`, `offset_mm` (o `null` + `offset_opciones_mm` para elegirlo en la app), `spacers` y `presion_base`, que acepta `formula: { psi_fijo, psi_por_kg }` o `tabla_peso_psi: [[kg, psi], ...]` (interpolación lineal), más `maximo_psi` y `psi_por_punto_sag` (corrección con el sag medido).
+- Base de los ajustadores, por prioridad:
+  1. `rebote_base` del componente: `desde_presion: { psi_ref, clicks_ref, clicks_por_psi }` (BoXXer, datos de Trailhead) o `tabla_peso` por rangos de peso con `clicks_por_psi` (Fox 40). `tipos` dice a qué ajustadores aplica.
+  2. `base_por_resorte.filas` (DHX2, tabla B): base de cada tipo según el resorte, como valor o rango `[min, max]`; se usa el menor. Si la app recomienda cambiar de resorte, usa la fila del resorte nuevo.
+  3. `base_desde_cerrado` del ajustador.
+  4. Si falta todo, la mitad del rango (provisoria).
+- Sin tabla del fabricante, el rebote base se escala por peso y resorte desde `referencia_base: { peso_kg, resorte_lb }`.
+- `palanca.recomendada`: la app recuerda en qué posición dejar la palanca.
+- `avisos`: textos que se muestran junto al componente.
 - Si cambias el resorte, edita `resorte_lb`.
 
 ### Datos pendientes (TODO)
@@ -72,7 +87,11 @@ Aparece solo en el selector de "Mi bici". Notas sobre los campos:
 - `clicks_totales: null` → el ajustador se muestra como "falta dato".
 - `presion_base` sin tabla → la app pide inflar hasta el sag objetivo.
 
-Hoy son provisorios: los `clicks_totales` de la Fox 40 2027 y del DHX2 (16 en baja velocidad y 8 en alta) y la tabla de presión de la BoXXer. Hay que reemplazarlos con los manuales.
+Pendientes hoy: `efecto_por_click` de todos los ajustadores, bases reales de compresión y tokens instalados de la BoXXer, offset de la Fox 40, conteo real del LSC del DHX2 y `precarga_mm_por_vuelta`.
+
+## Flip chips: actual y recomendado
+
+En "Mi bici" se marca cómo está montada la bici hoy (Maestro, headset y dropout). La pestaña Setup calcula la geometría con esa posición y la compara con la recomendada: "Sin cambios" o una línea con lo que cambia. "Apliqué la recomendación" actualiza la posición actual. La bitácora guarda ambas.
 
 ## Modelo físico
 
@@ -80,8 +99,8 @@ Hoy son provisorios: los `clicks_totales` de la Fox 40 2027 y del DHX2 (16 en ba
 2. Sag: se resuelve `k · (s + precarga) / LR(x) = carga` sobre la curva de leverage (spline monótona por los puntos de `bike.json`; el desplazamiento del shock es la integral de 1/LR).
 3. Wheel rate = `k / LR(x)²` en el sag, al 50 % y al 80 %.
 4. Resorte ideal: el `k` que da el sag objetivo, redondeado a 25 lb. Con sag medido se calibra el sesgo y se recalcula todo.
-5. Rebote base escalado por frecuencia natural × masa suspendida (`modelo.rebote.exponente_masa`; con 0 escala solo por frecuencia).
-6. Balance: la trasera debe tener 7-10 puntos más de sag; se corrige primero con presión y resorte, después con clicks.
+5. Rebote base: de la tabla del fabricante si el componente la trae; si no, escalado por frecuencia natural × masa suspendida (`modelo.rebote.exponente_masa`; con 0 escala solo por frecuencia).
+6. Balance: la trasera debe tener 7-10 puntos más de sag (con los sag de referencia). La presión de la horquilla sale de la tabla y solo se corrige con un sag medido; después vienen los clicks.
 7. Saltos: un impacto de referencia (`modelo.impacto_referencia`) predice el uso de recorrido; solo si pasa de 90 % sube el HSC trasero.
 
 La pantalla Setup muestra todo en "Ver el cálculo".
@@ -90,4 +109,4 @@ Para usar una curva de leverage medida, reemplaza `suspension_trasera.cinematica
 
 ## Bitácora y calibración
 
-Cada salida guarda fecha, pista, componentes montados, setup completo, nota y comentario. Los avisos ("hizo tope", "rebota mucho", "se hunde en curvas") mueven parámetros del modelo según `rules.json → calibracion`: `sesgo_trasero`, el impacto de referencia, y por componente el `efecto_por_click` y un sesgo de amortiguación. La calibración se recalcula desde la bitácora, así que borrar un registro deshace su efecto. Exporta e importa en JSON desde la pestaña Bitácora.
+Cada salida guarda fecha, pista, componentes montados, setup completo, nota y comentario. Los avisos ("hizo tope", "rebota mucho", "se hunde en curvas") mueven parámetros del modelo según `rules.json → calibracion`: `sesgo_trasero`, el impacto de referencia, y por componente el `efecto_por_click` y un sesgo de amortiguación. Si guardas salidas con el sag de la horquilla medido y la presión usada, `psi_por_punto_sag` se calibra con esas mediciones. La calibración se recalcula desde la bitácora, así que borrar un registro deshace su efecto. Exporta e importa en JSON desde la pestaña Bitácora.

@@ -2,64 +2,266 @@
   "horquillas": {
     "boxxer_ultimate_c2": {
       "nombre": "BoXXer Ultimate",
-      "nombre_largo": "RockShox BoXXer Ultimate C2 (Charger 2.1 RC2, 2019-2023)",
+      "nombre_largo": "RockShox BoXXer Ultimate C2 (Charger 2.1 RC2, DebonAir)",
       "tipo_resorte": "aire",
       "recorrido_mm": 200,
       "barras_mm": 35,
       "offset_mm": 48,
       "offset_verificado": true,
+      "sag_objetivo": {
+        "min": 20,
+        "max": 25,
+        "ideal": 22.5,
+        "verificado": false
+      },
       "ajustadores": [
-        { "id": "rebote", "tipo": "REBOTE_UNICO", "clicks_totales": 18, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false },
-        { "id": "lsc", "tipo": "LSC", "clicks_totales": 18, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false,
-          "nota": "Nominal 20; unidades reales miden entre 17 y 18." },
-        { "id": "hsc", "tipo": "HSC", "clicks_totales": 4, "unidad": "posiciones", "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false,
-          "nota": "5 posiciones (0-4)." }
+        {
+          "id": "rebote",
+          "tipo": "REBOTE_UNICO",
+          "clicks_totales": 18,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true,
+          "nota": "La base sale de rebote_base (Trailhead)."
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "clicks_totales": 18,
+          "base_desde_cerrado": 9,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "Nominal 20; unidades reales miden 17-18. Base provisoria: punto medio, como recomienda RockShox para partir."
+        },
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "clicks_totales": 4,
+          "base_desde_cerrado": 2,
+          "efecto_por_click": null,
+          "verificado": false,
+          "unidad": "posiciones",
+          "nota": "5 posiciones (0-4). Base provisoria: punto medio."
+        }
       ],
       "presion_base": {
-        "tabla_peso_psi": [[63, 115], [72, 130], [81, 145], [90, 160], [99, 175]],
-        "verificado": false,
-        "nota": "PROVISORIO: reemplazar por la tabla del manual o de la etiqueta de la horquilla."
+        "formula": {
+          "psi_fijo": 35.1,
+          "psi_por_kg": 1.097
+        },
+        "maximo_psi": 200,
+        "psi_por_punto_sag": 2,
+        "psi_por_punto_sag_verificado": false,
+        "verificado": true,
+        "fuente": "App Trailhead de RockShox con el número de serie de la horquilla",
+        "puntos_fuente": {
+          "columnas": [
+            "peso_kg",
+            "presion_psi",
+            "rebote_clicks"
+          ],
+          "filas": [[71, 113, 10], [80, 123, 9], [83, 126, 8], [90, 134, 8], [92, 136, 7], [102, 147, 6]]
+        }
       },
-      "spacers": { "nombre": "tokens", "instalados": null, "maximo": null, "verificado": false },
-      "notas": "Rangos de clicks confirmados con la ficha técnica. TODO: base_desde_cerrado, efecto_por_click y presión base."
+      "rebote_base": {
+        "desde_presion": {
+          "psi_ref": 113,
+          "clicks_ref": 10,
+          "clicks_por_psi": 0.118
+        },
+        "verificado": true,
+        "fuente": "App Trailhead de RockShox",
+        "fuente_corta": "Trailhead"
+      },
+      "spacers": {
+        "nombre": "tokens",
+        "instalados": null,
+        "maximo": null,
+        "verificado": false
+      },
+      "avisos": [
+        "Los rangos de clicks son de la ficha técnica y pueden variar 1 click entre unidades: verifica el conteo real de tu horquilla."
+      ],
+      "notas": "Presión y rebote: datos oficiales de Trailhead. TODO: efecto_por_click, tokens instalados y bases reales de compresión."
     },
     "fox40_2027": {
       "nombre": "Fox 40 2027",
-      "nombre_largo": "Fox 40 2027 (GRIP X2, aire GlideCore, tope MCU)",
+      "nombre_largo": "Fox 40 2027 GRIP X2 (aire)",
       "tipo_resorte": "aire",
       "recorrido_mm": 203,
       "barras_mm": 40,
       "offset_mm": null,
       "offset_opciones_mm": [44, 48, 52, 56],
       "offset_verificado": false,
+      "sag_objetivo": {
+        "min": 15,
+        "max": 20,
+        "ideal": 17.5,
+        "verificado": true
+      },
       "ajustadores": [
-        { "id": "hsc", "tipo": "HSC", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "lsc", "tipo": "LSC", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "hsr", "tipo": "HSR", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "lsr", "tipo": "LSR", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." }
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "clicks_totales": 8,
+          "base_desde_cerrado": 5,
+          "efecto_por_click": null,
+          "verificado": true
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "clicks_totales": 18,
+          "base_desde_cerrado": 10,
+          "efecto_por_click": null,
+          "verificado": true
+        },
+        {
+          "id": "hsr",
+          "tipo": "HSR",
+          "clicks_totales": 8,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true,
+          "nota": "La base sale de rebote_base (tabla por peso)."
+        },
+        {
+          "id": "lsr",
+          "tipo": "LSR",
+          "clicks_totales": 16,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true,
+          "nota": "La base sale de rebote_base (tabla por peso)."
+        }
       ],
-      "presion_base": { "tabla_peso_psi": null, "verificado": false, "nota": "TODO: tabla de presión por peso del manual." },
-      "spacers": { "nombre": "tokens", "instalados": null, "maximo": null, "verificado": false },
-      "notas": "TODO hasta cargar el manual: clicks_totales (los actuales son provisorios), base_desde_cerrado, efecto_por_click, presión base por peso, spacers instalados y offset."
+      "presion_base": {
+        "tabla_peso_psi": [[54, 52], [68, 64], [82, 76], [95, 87], [113, 101]],
+        "maximo_psi": 120,
+        "verificado": true,
+        "fuente": "Manual oficial FOX \"Fork 2027 40mm\""
+      },
+      "rebote_base": {
+        "tipos": [
+          "LSR",
+          "HSR"
+        ],
+        "tabla_peso": {
+          "columnas": [
+            "desde_kg",
+            "hasta_kg",
+            "clicks"
+          ],
+          "filas": [[54, 59, 10], [59, 64, 9], [64, 73, 8], [73, 82, 7], [82, 86, 6], [86, 95, 5], [95, 100, 4], [100, 109, 3], [109, 113, 2]],
+          "nota": "En un límite exacto se usa el rango más pesado."
+        },
+        "clicks_por_psi": 0.16,
+        "verificado": true,
+        "fuente": "Manual oficial FOX \"Fork 2027 40mm\" y ficha GRIP X2",
+        "fuente_corta": "tabla FOX"
+      },
+      "spacers": {
+        "nombre": "spacers de volumen",
+        "instalados": 2,
+        "maximo": 5,
+        "verificado": true
+      },
+      "notas": "Datos del manual oficial FOX. TODO: offset (se confirma al comprarla) y efecto_por_click."
     }
   },
   "amortiguadores": {
     "dhx2_factory": {
       "nombre": "DHX2",
-      "nombre_largo": "Fox DHX2 Factory (coil, trunnion 225×75)",
+      "nombre_largo": "Fox DHX2 Factory 2024 (coil, trunnion 225×75, HSR con VVC)",
       "tipo_resorte": "coil",
+      "recorrido_rueda_mm": 200,
       "carrera_mm": 75,
       "resorte_lb": 475,
-      "referencia_base": { "peso_kg": 80, "resorte_lb": 475 },
+      "sag_objetivo": {
+        "min": 28,
+        "max": 33,
+        "ideal": 30,
+        "verificado": true
+      },
       "precarga_mm_por_vuelta": 1.0,
+      "palanca": {
+        "posiciones": [
+          "Open",
+          "Firm"
+        ],
+        "recomendada": "Open"
+      },
       "ajustadores": [
-        { "id": "hsc", "tipo": "HSC", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "lsc", "tipo": "LSC", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "hsr", "tipo": "HSR", "clicks_totales": 8, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." },
-        { "id": "lsr", "tipo": "LSR", "clicks_totales": 16, "base_desde_cerrado": null, "efecto_por_click": null, "verificado": false, "nota": "clicks_totales PROVISORIO." }
+        {
+          "id": "hsc",
+          "tipo": "HSC",
+          "clicks_totales": 8,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true
+        },
+        {
+          "id": "lsc",
+          "tipo": "LSC",
+          "clicks_totales": 16,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": false,
+          "nota": "La tabla B llega a 17 con resortes livianos: confirmar el conteo real."
+        },
+        {
+          "id": "hsr",
+          "tipo": "HSR",
+          "clicks_totales": 8,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true
+        },
+        {
+          "id": "lsr",
+          "tipo": "LSR",
+          "clicks_totales": 16,
+          "base_desde_cerrado": null,
+          "efecto_por_click": null,
+          "verificado": true
+        }
       ],
-      "notas": "TODO hasta cargar el manual: clicks_totales (los actuales son provisorios), base_desde_cerrado y efecto_por_click."
+      "base_por_resorte": {
+        "tabla": "B",
+        "criterio": "FOX elige la tabla por recorrido trasero y carrera: 200 mm de rueda con 75 mm de carrera (fila de 76 mm) → Tabla B.",
+        "nota": "Clicks desde cerrado. Donde hay rango [min, max] se usa el menor (más amortiguación).",
+        "fuente": "Manual oficial FOX \"Shock 2024 All Coil Shocks (DHX2 and DHX models)\"",
+        "verificado": true,
+        "filas": {
+          "200": { "LSR": [13, 14], "HSR": [7, 8], "LSC": [16, 17], "HSC": [7, 8] },
+          "225": { "LSR": [13, 14], "HSR": [7, 8], "LSC": [16, 17], "HSC": [7, 8] },
+          "250": { "LSR": [12, 13], "HSR": [7, 8], "LSC": [15, 16], "HSC": [7, 8] },
+          "275": { "LSR": [11, 12], "HSR": [7, 8], "LSC": [15, 16], "HSC": [7, 8] },
+          "300": { "LSR": [10, 11], "HSR": [6, 7], "LSC": [14, 15], "HSC": [6, 7] },
+          "325": { "LSR": [9, 10], "HSR": [6, 7], "LSC": [14, 15], "HSC": [6, 7] },
+          "350": { "LSR": [8, 9], "HSR": [6, 7], "LSC": [13, 14], "HSC": [6, 7] },
+          "375": { "LSR": [7, 8], "HSR": [6, 7], "LSC": [13, 14], "HSC": [6, 7] },
+          "400": { "LSR": [6, 7], "HSR": [5, 6], "LSC": [12, 13], "HSC": [5, 6] },
+          "425": { "LSR": [6, 7], "HSR": [6, 7], "LSC": [11, 12], "HSC": [5, 6] },
+          "450": { "LSR": [5, 6], "HSR": [4, 5], "LSC": [10, 11], "HSC": [5, 6] },
+          "475": { "LSR": [5, 6], "HSR": [4, 5], "LSC": [9, 10], "HSC": [4, 5] },
+          "500": { "LSR": [4, 5], "HSR": [4, 5], "LSC": [8, 9], "HSC": [4, 5] },
+          "525": { "LSR": [4, 5], "HSR": [3, 4], "LSC": [7, 8], "HSC": [3, 4] },
+          "550": { "LSR": [3, 4], "HSR": [3, 4], "LSC": [6, 7], "HSC": [3, 4] },
+          "575": { "LSR": [3, 4], "HSR": [2, 3], "LSC": [5, 6], "HSC": [2, 3] },
+          "600": { "LSR": [2, 3], "HSR": [2, 3], "LSC": [5, 6], "HSC": [2, 3] },
+          "625": { "LSR": [2, 3], "HSR": [1, 2], "LSC": [4, 5], "HSC": [1, 2] },
+          "650": { "LSR": [1, 2], "HSR": [1, 2], "LSC": [4, 5], "HSC": [1, 2] },
+          "675": { "LSR": [1, 2], "HSR": [1, 2], "LSC": [3, 4], "HSC": [1, 2] },
+          "700": { "LSR": [1, 2], "HSR": [0, 1], "LSC": [3, 4], "HSC": [0, 1] },
+          "725": { "LSR": [0, 1], "HSR": [0, 1], "LSC": [2, 3], "HSC": [0, 1] }
+        }
+      },
+      "notas": "Bases de amortiguación de la Tabla B del manual 2024. TODO: efecto_por_click y precarga_mm_por_vuelta real."
     }
   },
-  "seleccion_por_defecto": { "horquilla": "boxxer_ultimate_c2", "amortiguador": "dhx2_factory" }
+  "seleccion_por_defecto": {
+    "horquilla": "boxxer_ultimate_c2",
+    "amortiguador": "dhx2_factory"
+  }
 }

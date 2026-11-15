@@ -6,6 +6,7 @@ const $ = (sel, raiz = document) => raiz.querySelector(sel);
 const $$ = (sel, raiz = document) => [...raiz.querySelectorAll(sel)];
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const f = (v, dec = 1) => (v == null || !Number.isFinite(+v) ? '–' : (Math.round(v * 10 ** dec) / 10 ** dec).toFixed(dec).replace('.', ',').replace(/,0+$/, ''));
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const hoy = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -28,6 +29,7 @@ const estado = {
   inputs: { ...INPUTS_DEFECTO, ...leer('inputs', {}) },
   seleccion: leer('seleccion', null),
   offsets: leer('offsets', {}),
+  chips: leer('chips', null), // posición ACTUAL de los flip chips
   bitacora: leer('bitacora', []),
   filtros: { pista: '', horquilla: '', amortiguador: '' },
 };
@@ -64,6 +66,13 @@ function seleccionValida() {
   };
 }
 
+function chipsActuales() {
+  const g = datos.bike.geometria;
+  const c = { ...g.baseline };
+  for (const k of ['maestro', 'direccion', 'dropout']) if (g[k][estado.chips?.[k]]) c[k] = estado.chips[k];
+  return c;
+}
+
 function calcular() {
   const sel = seleccionValida();
   ultima = recomendar({
@@ -71,6 +80,7 @@ function calcular() {
     seleccion: sel, inputs: estado.inputs,
     calibracion: calibrar(estado.bitacora, datos.rules),
     offsetUsuario: estado.offsets[sel.horquilla] ?? null,
+    chipsActuales: chipsActuales(),
   });
   return ultima;
 }
@@ -175,6 +185,15 @@ function filaAjustador(a) {
     </li>`;
 }
 
+function filaChip(titulo, c) {
+  const valor = c.cambia
+    ? `<span class="de-a"><s>${esc(c.actual)}</s><i aria-hidden="true">→</i><span class="visually-hidden"> cambia a </span>${esc(c.recomendado)}</span>`
+    : esc(c.recomendado);
+  return `<li class="dato"><div class="dato-cab"><span>${titulo}</span><strong>${valor}</strong></div>
+    <p class="cambio ${c.cambia ? 'alerta' : 'ok'}">${c.cambia ? `Cambiar: ${esc(c.texto)}` : 'Sin cambios: ya está en la posición recomendada'}</p>
+    <p class="porque">${esc(c.porque)}</p></li>`;
+}
+
 function filaDato(titulo, valor, porque, extra = '') {
   return `<li class="dato"><div class="dato-cab"><span>${titulo}</span><strong>${valor}</strong></div>${extra}${porque ? `<p class="porque">${esc(porque)}</p>` : ''}</li>`;
 }
@@ -210,13 +229,14 @@ function pintarResultado() {
 
   cont.innerHTML = `
     <section class="tarjeta">
-      <h2>Flip chips</h2>
+      <h2>Flip chips <small>actual → recomendado</small></h2>
       <ul class="lista">
-        ${filaDato('Maestro', esc(g.maestro.valor), g.maestro.porque)}
-        ${filaDato('Dirección (reach)', esc(g.direccion.valor), g.direccion.porque)}
-        ${filaDato('Dropout', esc(g.dropout.valor), g.dropout.porque)}
+        ${filaChip('Maestro', g.maestro)}
+        ${filaChip('Headset (reach)', g.direccion)}
+        ${filaChip('Dropout', g.dropout)}
       </ul>
-      <h3>Geometría resultante</h3>
+      ${g.hay_cambios ? '<button type="button" class="btn-sec ancho" id="btn-aplique">Apliqué la recomendación</button>' : ''}
+      <h3>Geometría actual <small>Maestro ${esc(g.actuales.maestro)} · Headset ${esc(g.actuales.direccion)} · Dropout ${esc(g.actuales.dropout)}</small></h3>
       <dl class="geo">
         <div><dt>Dirección</dt><dd>${f(m.angulo_direccion)}°</dd></div>
         <div><dt>Sillín</dt><dd>${f(m.angulo_sillin)}°</dd></div>
@@ -243,10 +263,11 @@ function pintarResultado() {
     <section class="tarjeta">
       <h2>Horquilla <small>${esc(h.nombre)}</small></h2>
       ${sinVerificarHtml(r.sin_verificar.horquilla)}
+      ${(datos.components.horquillas[h.id].avisos ?? []).map((x) => `<p class="discreto">⚠ ${esc(x)}</p>`).join('')}
       <ul class="lista">
-        ${filaDato('Sag objetivo', `${f(h.sag_objetivo.ideal)} %`, `Rango ${h.sag_objetivo.min}-${h.sag_objetivo.max} %: unos ${f(h.sag_objetivo.mm, 0)} mm en la barra.`)}
+        ${filaDato('Sag objetivo', `${f(h.sag_objetivo.ideal)} %`, `Rango ${h.sag_objetivo.min}-${h.sag_objetivo.max} % de ${datos.components.horquillas[h.id].recorrido_mm} mm: unos ${f(h.sag_objetivo.mm, 0)} mm en la barra.`)}
         ${h.presion ? filaDato('Presión de partida', h.presion.psi != null ? `${h.presion.psi} psi${h.presion.provisoria ? '*' : ''}` : 'Falta dato', h.presion.porque, h.presion.psi != null ? `<em class="sub">${f(h.presion.bar, 1)} bar${h.presion.provisoria ? ' · *provisoria' : ''}</em>` : '') : ''}
-        ${filaDato('Tokens', esc(h.tokens.texto), h.tokens.porque)}
+        ${filaDato(esc(mayuscula(datos.components.horquillas[h.id].spacers?.nombre ?? 'tokens')), esc(h.tokens.texto), h.tokens.porque)}
       </ul>
       <h3>Clicks desde 100 % cerrado</h3>
       <ul class="lista">${h.ajustadores.map(filaAjustador).join('')}</ul>
@@ -256,11 +277,12 @@ function pintarResultado() {
       <h2>Amortiguador <small>${esc(a.nombre)}${a.resorte.actual_lb ? ` ${a.resorte.actual_lb} lb` : ''}</small></h2>
       ${sinVerificarHtml(r.sin_verificar.amortiguador)}
       <ul class="lista">
-        ${filaDato(`Sag ${a.sag.medido ? 'medido' : 'estimado'}`, `${f(a.sag.pct_shock)} %`, `Objetivo ${a.sag_objetivo.min}-${a.sag_objetivo.max} %. Son ${f(a.sag.shock_mm)} mm de shock y ${f(a.sag.rueda_mm, 0)} mm en la rueda.`)}
+        ${filaDato(`Sag ${a.sag.medido ? 'medido' : 'estimado'}`, `${f(a.sag.pct_shock)} %`, `Objetivo ${a.sag_objetivo.min}-${a.sag_objetivo.max} % (${f(a.sag_objetivo.ideal, 0)} % = ${f(a.sag_objetivo.mm, 0)} mm de shock). Son ${f(a.sag.shock_mm)} mm de shock y ${f(a.sag.rueda_mm, 0)} mm en la rueda.`)}
         ${filaDato('Resorte', resorteValor, a.resorte.porque, a.es_coil ? `<em class="sub">Ideal ${f(a.resorte.ideal_exacto_lb, 0)} lb · catálogo ${a.resorte.ideal_catalogo_lb} lb</em>` : '')}
         ${a.es_coil ? filaDato('Precarga', `${a.precarga.vueltas} vuelta${a.precarga.vueltas === 1 ? '' : 's'}`, a.precarga.porque) : ''}
       </ul>
       <h3>Clicks desde 100 % cerrado</h3>
+      ${a.palanca || (a.es_coil && a.resorte_para_clicks_lb !== a.resorte.actual_lb) ? `<p class="discreto">${[a.palanca ? `${esc(a.palanca)}.` : '', a.es_coil && a.resorte_para_clicks_lb !== a.resorte.actual_lb ? `Clicks calculados para el resorte recomendado de ${a.resorte_para_clicks_lb} lb.` : ''].filter(Boolean).join(' ')}</p>` : ''}
       <ul class="lista">${a.ajustadores.map(filaAjustador).join('')}</ul>
     </section>
 
@@ -301,6 +323,11 @@ function eventosSetup(e) {
       $$(`[data-unidad="${t.dataset.unidad}"]`).forEach((b) => b.classList.toggle('activo', b === t));
     } else if (t.id === 'btn-guardar') {
       return dialogoGuardar();
+    } else if (t.id === 'btn-aplique') {
+      estado.chips = { ...ultima.geometria.recomendados };
+      persistir('chips', estado.chips);
+      toast('Posición actual de los flip chips actualizada.');
+      return pintarResultado();
     } else return;
   } else {
     if (t.id === 'peso') i.peso_kg = t.value === '' ? '' : Number(t.value);
@@ -321,7 +348,8 @@ function eventosSetup(e) {
 function instantanea(r) {
   const clicks = (lista) => lista.filter((x) => !x.sin_datos).map((x) => ({ etiqueta: x.etiqueta, click: x.click, total: x.clicks_totales }));
   return {
-    chips: { maestro: r.geometria.maestro.valor, direccion: r.geometria.direccion.valor, dropout: r.geometria.dropout.valor },
+    chips: { ...r.geometria.recomendados }, // recomendados
+    chips_actuales: { ...r.geometria.actuales },
     geometria: { reach_mm: r.geometria.medidas.reach_mm, trail_mm: r.geometria.medidas.trail_mm, distancia_ejes_mm: r.geometria.medidas.distancia_ejes_mm },
     neumaticos: { adelante_psi: r.neumaticos.adelante.psi, atras_psi: r.neumaticos.atras.psi },
     horquilla: {
@@ -379,6 +407,7 @@ function dialogoGuardar() {
       amortiguador: r.seleccion.amortiguador,
       montado: r.montado,
       inputs: { ...r.inputs },
+      medidas: { ...r.medidas_usuario },
       setup: instantanea(r),
     };
     estado.bitacora.push(reg);
@@ -391,11 +420,19 @@ function dialogoGuardar() {
 
 const estrellas = (n) => `<span class="estrellas" aria-label="Nota ${n} de 5">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`;
 
+// "Actual → Recomendado" de un chip guardado (los registros antiguos solo traen el recomendado).
+function chipTxt(s, k) {
+  const rec = s?.chips?.[k];
+  const act = s?.chips_actuales?.[k];
+  if (rec == null) return null;
+  return act && act !== rec ? `${esc(act)} → ${esc(rec)}` : esc(rec);
+}
+
 function resumenSetup(s) {
   const cl = (lista) => lista.map((c) => `${esc(c.etiqueta.replace(/ (adelante|atrás)$/, ''))} <b>${c.click}</b>`).join(' · ');
   return `
     <dl class="mini">
-      <div><dt>Chips</dt><dd>Maestro ${esc(s.chips.maestro)} · Reach ${esc(s.chips.direccion)} · Dropout ${esc(s.chips.dropout)}</dd></div>
+      <div><dt>Chips</dt><dd>${[['Maestro', 'maestro'], ['Headset', 'direccion'], ['Dropout', 'dropout']].map(([n, k]) => `${n} ${chipTxt(s, k)}`).join(' · ')}</dd></div>
       <div><dt>Neumáticos</dt><dd>${f(s.neumaticos.adelante_psi)} / ${f(s.neumaticos.atras_psi)} psi</dd></div>
       <div><dt>Horquilla</dt><dd>${s.horquilla.presion_psi != null ? `${s.horquilla.presion_psi} psi · ` : ''}${cl(s.horquilla.clicks)}</dd></div>
       <div><dt>Amortiguador</dt><dd>${s.amortiguador.resorte_lb ? `${s.amortiguador.resorte_lb} lb · ` : ''}${cl(s.amortiguador.clicks)}</dd></div>
@@ -431,7 +468,7 @@ function vistaBitacora() {
 function exportar() {
   const contenido = JSON.stringify({
     app: 'glory-setup', version: 1, exportado: new Date().toISOString(),
-    seleccion: seleccionValida(), offsets: estado.offsets, inputs: estado.inputs, bitacora: estado.bitacora,
+    seleccion: seleccionValida(), offsets: estado.offsets, chips: chipsActuales(), inputs: estado.inputs, bitacora: estado.bitacora,
   }, null, 2);
   const url = URL.createObjectURL(new Blob([contenido], { type: 'application/json' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: `glory-setup-${hoy()}.json` });
@@ -503,9 +540,9 @@ function vistaComparar() {
     fila('Horquilla', (x) => esc(nombreComp(x.horquilla)));
     fila('Amortiguador', (x) => esc(nombreComp(x.amortiguador)));
     fila('Modifiers', (x) => `${esc(etiquetaFeel(x.inputs?.feel ?? 0))}<br>Grip ${esc(x.inputs?.grip)}<br>${esc(x.inputs?.tipo)}${x.inputs?.saltos ? '<br>Saltos' : ''}`);
-    fila('Maestro', (x) => esc(x.setup?.chips.maestro));
-    fila('Reach', (x) => esc(x.setup?.chips.direccion));
-    fila('Dropout', (x) => esc(x.setup?.chips.dropout));
+    fila('Maestro', (x) => chipTxt(x.setup, 'maestro'));
+    fila('Headset', (x) => chipTxt(x.setup, 'direccion'));
+    fila('Dropout', (x) => chipTxt(x.setup, 'dropout'));
     fila('Neum. adelante', (x) => `${f(x.setup?.neumaticos.adelante_psi)} psi`);
     fila('Neum. atrás', (x) => `${f(x.setup?.neumaticos.atras_psi)} psi`);
     fila('Presión horquilla', (x) => (x.setup?.horquilla.presion_psi != null ? `${x.setup.horquilla.presion_psi} psi` : null));
@@ -574,7 +611,23 @@ function vistaBici() {
   const cin = b.suspension_trasera.cinematica;
   const pideOffset = h.offset_mm == null;
   const offsetActual = estado.offsets[sel.horquilla] ?? null;
+  const chips = chipsActuales();
+  const g = b.geometria;
+  const selectorChip = (clave, titulo, etiqueta) => `
+    <div class="campo">
+      <label>${titulo}</label>
+      <div class="segmento ancho" role="group" aria-label="${titulo}">
+        ${Object.keys(g[clave]).map((o) => `<button type="button" data-chip="${clave}" data-valor="${esc(o)}" class="${o === chips[clave] ? 'activo' : ''}" aria-pressed="${o === chips[clave]}">${esc(etiqueta(o))}</button>`).join('')}
+      </div>
+    </div>`;
   $('#vista').innerHTML = `
+    <section class="tarjeta">
+      <h2>Flip chips <small>cómo está montada hoy</small></h2>
+      ${selectorChip('maestro', 'Maestro', (o) => o)}
+      ${selectorChip('direccion', 'Headset (reach)', (o) => `${o} ${g.direccion[o].reach_mm > 0 ? '+' : g.direccion[o].reach_mm < 0 ? '−' : ''}${Math.abs(g.direccion[o].reach_mm)}`)}
+      ${selectorChip('dropout', 'Dropout', (o) => o)}
+      <p class="ayuda">La geometría de la pestaña Setup se calcula con esta posición y se compara con la recomendada.</p>
+    </section>
     <section class="tarjeta">
       <h2>Horquilla</h2>
       <div class="opciones">${opcionesComponente('horquilla', datos.components.horquillas, sel.horquilla)}</div>
@@ -587,6 +640,7 @@ function vistaBici() {
           <p class="ayuda">${offsetActual == null ? 'Elige el offset para recalcular trail y distancia entre ejes. Mientras tanto se usa 52 mm.' : 'Cuando lo confirmes, déjalo fijo en components.json (offset_mm).'}</p>
         </div>` : `<p class="discreto">Offset ${h.offset_mm} mm${h.offset_verificado ? ' (confirmado)' : ''}.</p>`}
       ${sinVerificarHtml(camposSinVerificar(h))}
+      ${(h.avisos ?? []).map((x) => `<p class="discreto">⚠ ${esc(x)}</p>`).join('')}
       ${h.notas ? `<p class="discreto">${esc(h.notas)}</p>` : ''}
     </section>
     <section class="tarjeta">
@@ -608,13 +662,19 @@ function vistaBici() {
         <div><dt>Progresión</dt><dd>${f(cin.resumen.progresion_pct)}<small> %</small></dd></div>
       </dl>
       <p class="discreto">Setup base: Maestro ${esc(b.geometria.baseline.maestro)}, dirección ${esc(b.geometria.baseline.direccion)}, dropout ${esc(b.geometria.baseline.dropout)}. Neumáticos: carcasa ${esc(b.neumaticos.carcasa.toLowerCase())}.</p>
-      <p class="discreto">${esc(cin.forma)} Anti-squat ${cin.anti_squat.inicio_pct.join('-')} % al inicio y ${cin.anti_squat.sag_pct.join('-')} % en el sag (${esc(cin.anti_squat.fuente)}).</p>
+      <p class="discreto">${esc(cin.forma)} Dato informativo, no se usa como regla: anti-squat ${cin.anti_squat.inicio_pct.join('-')} % al inicio y ${cin.anti_squat.sag_pct.join('-')} % en el sag (${esc(cin.anti_squat.fuente)}).</p>
       <p class="discreto">⚠ Curva de leverage: ${esc(cin.fuente)}. Verificar.</p>
     </section>`;
 }
 
 function eventosBici(e) {
   if (e.type !== 'click') return;
+  const chip = e.target.closest('[data-chip]');
+  if (chip) {
+    estado.chips = { ...chipsActuales(), [chip.dataset.chip]: chip.dataset.valor };
+    persistir('chips', estado.chips);
+    return vistaBici();
+  }
   const off = e.target.closest('[data-offset]');
   if (off) {
     estado.offsets[seleccionValida().horquilla] = Number(off.dataset.offset);
@@ -694,6 +754,7 @@ async function iniciar() {
     return;
   }
   if (!Array.isArray(estado.bitacora)) estado.bitacora = [];
+  $('#pie').textContent = `Glory Setup v${self.GLORY_VERSION ?? '?'} · ${self.GLORY_FECHA ?? ''}`;
   pintarMontado();
   const vista = $('#vista');
   for (const tipo of ['click', 'input', 'change']) {
@@ -709,8 +770,44 @@ async function iniciar() {
   irA('setup');
 }
 
+// ---------- Service worker y actualización ----------
+// Una versión nueva se instala en segundo plano y queda esperando. Recién al
+// tocar el aviso reemplaza a la anterior y la página se recarga una sola vez,
+// así nunca se mezclan archivos de dos versiones ni queda la pantalla en blanco.
+
+function vigilarActualizacion(reg) {
+  const aviso = $('#aviso-version');
+  let aceptada = false;
+  const ofrecer = () => {
+    if (reg.waiting && navigator.serviceWorker.controller) aviso.hidden = false;
+  };
+  ofrecer();
+  reg.addEventListener('updatefound', () => {
+    const nuevo = reg.installing;
+    nuevo?.addEventListener('statechange', () => { if (nuevo.state === 'installed') ofrecer(); });
+  });
+  aviso.addEventListener('click', () => {
+    if (!reg.waiting) return location.reload();
+    aceptada = true;
+    aviso.textContent = 'Actualizando…';
+    aviso.disabled = true;
+    reg.waiting.postMessage('SKIP_WAITING');
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!aceptada) return; // primera instalación: no hay nada que recargar
+    aceptada = false;
+    location.reload();
+  });
+  // En el iPhone la app instalada puede pasar días abierta: revisa al volver a ella.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reg.update().catch(() => {});
+  });
+}
+
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(vigilarActualizacion).catch(() => {});
+  });
 }
 
 iniciar();

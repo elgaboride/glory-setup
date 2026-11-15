@@ -21,7 +21,9 @@
     </div>
     <button id="btn-tema" class="btn-icono" type="button" aria-label="Cambiar entre modo oscuro y modo sol">☀</button>
   </header>
+  <button id="aviso-version" type="button" hidden>Hay una versión nueva, toca para actualizar</button>
   <main id="vista" tabindex="-1"><p class="cargando">Cargando…</p></main>
+  <footer class="pie" id="pie"></footer>
   <nav class="tabs" aria-label="Secciones">
     <button type="button" data-tab="setup" class="activo"><span aria-hidden="true">◎</span>Setup</button>
     <button type="button" data-tab="bitacora"><span aria-hidden="true">✎</span>Bitácora</button>
@@ -30,6 +32,7 @@
   </nav>
   <dialog id="dlg"></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
+  <script src="version.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
